@@ -63,9 +63,9 @@ func validateMetricGetPath(metricType, metricName string) (types.MetricID, error
 	metric.ID = metricName
 
 	switch metricType {
-	case string(types.Counter):
+	case types.Counter:
 		metric.MType = types.Counter
-	case string(types.Gauge):
+	case types.Gauge:
 		metric.MType = types.Gauge
 	default:
 		return types.MetricID{}, errMetricGetTypeInvalid

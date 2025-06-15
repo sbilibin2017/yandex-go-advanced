@@ -1,4 +1,4 @@
-package repositories_test
+package repositories
 
 import (
 	"context"
@@ -6,14 +6,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/sbilibin2017/yandex-go-advanced/internal/repositories"
-	"github.com/sbilibin2017/yandex-go-advanced/internal/storages"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
 func TestMetricMemorySaveRepository_Save(t *testing.T) {
-	storage := storages.NewMemoryStorage[types.MetricID, types.Metrics]()
-	repo := repositories.NewMetricMemorySaveRepository(storage)
+	// Очищаем глобальное хранилище перед запуском теста
+	mu.Lock()
+	metrics = make(map[types.MetricID]types.Metrics)
+	mu.Unlock()
+
+	repo := NewMetricMemorySaveRepository()
 
 	ptrInt64 := func(i int64) *int64 { return &i }
 	ptrFloat64 := func(f float64) *float64 { return &f }
@@ -56,11 +58,11 @@ func TestMetricMemorySaveRepository_Save(t *testing.T) {
 
 			key := types.MetricID{ID: tt.input.ID, MType: tt.input.MType}
 
-			storage.Mu.RLock()
-			savedMetric, ok := storage.Store[key]
-			storage.Mu.RUnlock()
+			mu.RLock()
+			savedMetric, ok := metrics[key]
+			mu.RUnlock()
 
-			assert.True(t, ok, "metric should be saved in storage")
+			assert.True(t, ok, "metric should be saved in global metrics")
 			assert.Equal(t, tt.input, savedMetric)
 		})
 	}

@@ -10,17 +10,17 @@ type MetricGetGetter interface {
 	Get(ctx context.Context, id types.MetricID) (*types.Metrics, error)
 }
 
-type MetricgetService struct {
+type MetricGetService struct {
 	getter MetricGetGetter
 }
 
 func NewMetricGetService(
 	getter MetricGetGetter,
-) *MetricgetService {
-	return &MetricgetService{getter: getter}
+) *MetricGetService {
+	return &MetricGetService{getter: getter}
 }
 
-func (svc *MetricgetService) Get(
+func (svc *MetricGetService) Get(
 	ctx context.Context,
 	id types.MetricID,
 ) (*types.Metrics, error) {

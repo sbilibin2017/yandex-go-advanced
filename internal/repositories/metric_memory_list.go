@@ -4,34 +4,27 @@ import (
 	"context"
 	"sort"
 
-	"github.com/sbilibin2017/yandex-go-advanced/internal/storages"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
-type MetricMemoryListRepository struct {
-	storage *storages.MemoryStorage[types.MetricID, types.Metrics]
-}
+type MetricMemoryListRepository struct{}
 
-func NewMetricMemoryListRepository(
-	storage *storages.MemoryStorage[types.MetricID, types.Metrics],
-) *MetricMemoryListRepository {
-	return &MetricMemoryListRepository{
-		storage: storage,
-	}
+func NewMetricMemoryListRepository() *MetricMemoryListRepository {
+	return &MetricMemoryListRepository{}
 }
 
 func (repo *MetricMemoryListRepository) List(ctx context.Context) ([]types.Metrics, error) {
-	repo.storage.Mu.RLock()
-	defer repo.storage.Mu.RUnlock()
+	mu.RLock()
+	defer mu.RUnlock()
 
-	metrics := make([]types.Metrics, 0, len(repo.storage.Store))
-	for _, metric := range repo.storage.Store {
-		metrics = append(metrics, metric)
+	list := make([]types.Metrics, 0, len(metrics))
+	for _, m := range metrics {
+		list = append(list, m)
 	}
 
-	sort.Slice(metrics, func(i, j int) bool {
-		return metrics[i].ID < metrics[j].ID
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].ID < list[j].ID
 	})
 
-	return metrics, nil
+	return list, nil
 }
