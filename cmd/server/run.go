@@ -13,13 +13,24 @@ import (
 	"github.com/sbilibin2017/yandex-go-advanced/internal/handlers"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/repositories"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/services"
-	"github.com/sbilibin2017/yandex-go-advanced/internal/storages"
-	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
 var (
+	metricMemorySaveRepository *repositories.MetricMemorySaveRepository
+	metricMemoryGetRepository  *repositories.MetricMemoryGetRepository
+	metricMemoryListRepository *repositories.MetricMemoryListRepository
+
+	metricUpdateService *services.MetricUpdateService
+	metricGetService    *services.MetricGetService
+	metricListService   *services.MetricListService
+
+	metricUpdatePathHandler http.HandlerFunc
+	metricGetPathHandler    http.HandlerFunc
+	metricListHTMLHandler   http.HandlerFunc
+
 	metricRouter *chi.Mux
-	srv          *http.Server
+
+	srv *http.Server
 )
 
 func run() error {
@@ -33,25 +44,23 @@ func setupServer() {
 }
 
 func setupMetricsRouter() {
-	memoryStorage := storages.NewMemoryStorage[types.MetricID, types.Metrics]()
+	metricMemorySaveRepository = repositories.NewMetricMemorySaveRepository()
+	metricMemoryGetRepository = repositories.NewMetricMemoryGetRepository()
+	metricMemoryListRepository = repositories.NewMetricMemoryListRepository()
 
-	metricMemorySaveRepository := repositories.NewMetricMemorySaveRepository(memoryStorage)
-	metricMemoryGetRepository := repositories.NewMetricMemoryGetRepository(memoryStorage)
-	metricMemoryListRepository := repositories.NewMetricMemoryListRepository(memoryStorage)
+	metricUpdateService = services.NewMetricUpdateService(metricMemorySaveRepository, metricMemoryGetRepository)
+	metricGetService = services.NewMetricGetService(metricMemoryGetRepository)
+	metricListService = services.NewMetricListService(metricMemoryListRepository)
 
-	metricUpdateService := services.NewMetricUpdateService(metricMemorySaveRepository, metricMemoryGetRepository)
-	metricGetService := services.NewMetricGetService(metricMemoryGetRepository)
-	metricListService := services.NewMetricListService(metricMemoryListRepository)
-
-	metricUpdatePathHandler := handlers.NewMetricUpdatePathHandler(metricUpdateService)
-	metricGetPathHandler := handlers.NewMetricGetPathHandler(metricGetService)
-	metricListHTMLHandler := handlers.NewMetricListHTMLHandler(metricListService)
+	metricUpdatePathHandler = handlers.NewMetricUpdatePathHandler(metricUpdateService)
+	metricGetPathHandler = handlers.NewMetricGetPathHandler(metricGetService)
+	metricListHTMLHandler = handlers.NewMetricListHTMLHandler(metricListService)
 
 	metricRouter = chi.NewRouter()
 
 	metricRouter.Post("/update/{type}/{name}/{value}", metricUpdatePathHandler)
 	metricRouter.Get("/value/{type}/{name}", metricGetPathHandler)
-	metricRouter.Get("/list", metricListHTMLHandler)
+	metricRouter.Get("/", metricListHTMLHandler)
 
 }
 

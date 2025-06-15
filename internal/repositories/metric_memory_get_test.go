@@ -1,23 +1,26 @@
-package repositories_test
+package repositories
 
 import (
 	"context"
 	"testing"
 
-	"github.com/sbilibin2017/yandex-go-advanced/internal/repositories"
-	"github.com/sbilibin2017/yandex-go-advanced/internal/storages"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMetricMemoryGetRepository_Get(t *testing.T) {
-	storage := storages.NewMemoryStorage[types.MetricID, types.Metrics]()
-	repo := repositories.NewMetricMemoryGetRepository(storage)
+	// Очищаем глобальное хранилище перед началом теста
+	mu.Lock()
+	metrics = make(map[types.MetricID]types.Metrics)
+	mu.Unlock()
+
+	repo := NewMetricMemoryGetRepository()
 	ctx := context.Background()
 
 	ptrInt64 := func(i int64) *int64 {
 		return &i
 	}
+
 	// Подготовка данных
 	existingMetric := types.Metrics{
 		ID:    "metric1",
@@ -25,9 +28,10 @@ func TestMetricMemoryGetRepository_Get(t *testing.T) {
 		Delta: ptrInt64(42),
 	}
 	key := types.MetricID{ID: existingMetric.ID, MType: existingMetric.MType}
-	storage.Mu.Lock()
-	storage.Store[key] = existingMetric
-	storage.Mu.Unlock()
+
+	mu.Lock()
+	metrics[key] = existingMetric
+	mu.Unlock()
 
 	tests := []struct {
 		name    string
@@ -53,10 +57,10 @@ func TestMetricMemoryGetRepository_Get(t *testing.T) {
 			got, err := repo.Get(ctx, tt.id)
 			if tt.wantErr {
 				assert.Error(t, err)
-				return
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, got)
 		})
 	}
 }

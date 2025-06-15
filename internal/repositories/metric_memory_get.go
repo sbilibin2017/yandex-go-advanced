@@ -3,30 +3,23 @@ package repositories
 import (
 	"context"
 
-	"github.com/sbilibin2017/yandex-go-advanced/internal/storages"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
-type MetricMemoryGetRepository struct {
-	storage *storages.MemoryStorage[types.MetricID, types.Metrics]
-}
+type MetricMemoryGetRepository struct{}
 
-func NewMetricMemoryGetRepository(
-	storage *storages.MemoryStorage[types.MetricID, types.Metrics],
-) *MetricMemoryGetRepository {
-	return &MetricMemoryGetRepository{
-		storage: storage,
-	}
+func NewMetricMemoryGetRepository() *MetricMemoryGetRepository {
+	return &MetricMemoryGetRepository{}
 }
 
 func (repo *MetricMemoryGetRepository) Get(
 	ctx context.Context,
 	id types.MetricID,
 ) (*types.Metrics, error) {
-	repo.storage.Mu.RLock()
-	defer repo.storage.Mu.RUnlock()
+	mu.RLock()
+	defer mu.RUnlock()
 
-	value, ok := repo.storage.Store[id]
+	value, ok := metrics[id]
 	if !ok {
 		return nil, nil
 	}
