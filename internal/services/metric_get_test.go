@@ -42,16 +42,16 @@ func TestMetricgetService_Get_Table(t *testing.T) {
 			},
 			args: args{
 				ctx: context.Background(),
-				id:  types.MetricID{ID: "metric1", MType: types.Counter},
+				id:  types.MetricID{ID: "metric1", Type: types.Counter},
 			},
 			want: want{
-				metric: &types.Metrics{ID: "metric1", MType: types.Counter, Delta: func(i int64) *int64 { return &i }(10)},
+				metric: &types.Metrics{ID: "metric1", Type: types.Counter, Delta: func(i int64) *int64 { return &i }(10)},
 				err:    false,
 			},
 			setup: func(f fields, args args) {
 				f.getter.EXPECT().
 					Get(args.ctx, args.id).
-					Return(&types.Metrics{ID: "metric1", MType: types.Counter, Delta: func(i int64) *int64 { return &i }(10)}, nil)
+					Return(&types.Metrics{ID: "metric1", Type: types.Counter, Delta: func(i int64) *int64 { return &i }(10)}, nil)
 			},
 		},
 		{
@@ -61,7 +61,7 @@ func TestMetricgetService_Get_Table(t *testing.T) {
 			},
 			args: args{
 				ctx: context.Background(),
-				id:  types.MetricID{ID: "metric2", MType: types.Gauge},
+				id:  types.MetricID{ID: "metric2", Type: types.Gauge},
 			},
 			want: want{
 				metric: nil,
@@ -80,7 +80,7 @@ func TestMetricgetService_Get_Table(t *testing.T) {
 			},
 			args: args{
 				ctx: context.Background(),
-				id:  types.MetricID{ID: "metric3", MType: types.Counter},
+				id:  types.MetricID{ID: "metric3", Type: types.Counter},
 			},
 			want: want{
 				metric: nil,

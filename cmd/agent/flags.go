@@ -4,52 +4,93 @@ import (
 	"flag"
 	"os"
 	"strconv"
+
+	"github.com/sbilibin2017/yandex-go-advanced/internal/configs"
 )
 
-var (
-	addressFlag        string
-	pollIntervalFlag   int
-	reportIntervalFlag int
-	numWorkersFlag     int
-)
+func parseFlags() (*configs.AgentConfig, error) {
+	fs := flag.NewFlagSet("agent", flag.ExitOnError)
 
-func init() {
-	parseAddressFlag()
-	parsePollIntervalFlag()
-	parseReportIntervalFlag()
-	parseNumWorkersFlag()
+	options := []configs.AgentOption{
+		withServerAddress(fs),
+		withPollInterval(fs),
+		withReportInterval(fs),
+		withNumWorkers(fs),
+		withLogLevel(fs),
+	}
+
+	fs.Parse(os.Args[1:])
+
+	return configs.NewAgentConfig(options...), nil
 }
 
-func parseAddressFlag() {
-	flag.StringVar(&addressFlag, "a", ":8080", "HTTP server address")
-	if env := os.Getenv("ADDRESS"); env != "" {
-		addressFlag = env
+func withServerAddress(fs *flag.FlagSet) configs.AgentOption {
+	var addrFlag string
+	fs.StringVar(&addrFlag, "a", ":8080", "server address")
+
+	return func(cfg *configs.AgentConfig) {
+		if env := os.Getenv("ADDRESS"); env != "" {
+			cfg.ServerAddress = env
+			return
+		}
+		cfg.ServerAddress = addrFlag
 	}
 }
 
-func parsePollIntervalFlag() {
-	flag.IntVar(&pollIntervalFlag, "poll", 5, "Polling interval in seconds")
-	if env := os.Getenv("POLL_INTERVAL"); env != "" {
-		if v, err := strconv.Atoi(env); err == nil {
-			pollIntervalFlag = v
+func withPollInterval(fs *flag.FlagSet) configs.AgentOption {
+	var pollFlag int
+	fs.IntVar(&pollFlag, "poll", 5, "polling interval in seconds")
+
+	return func(cfg *configs.AgentConfig) {
+		if env := os.Getenv("POLL_INTERVAL"); env != "" {
+			if v, err := strconv.Atoi(env); err == nil {
+				cfg.PollInterval = v
+				return
+			}
 		}
+		cfg.PollInterval = pollFlag
 	}
 }
 
-func parseReportIntervalFlag() {
-	flag.IntVar(&reportIntervalFlag, "report", 10, "Reporting interval in seconds")
-	if env := os.Getenv("REPORT_INTERVAL"); env != "" {
-		if v, err := strconv.Atoi(env); err == nil {
-			reportIntervalFlag = v
+func withReportInterval(fs *flag.FlagSet) configs.AgentOption {
+	var reportFlag int
+	fs.IntVar(&reportFlag, "report", 10, "reporting interval in seconds")
+
+	return func(cfg *configs.AgentConfig) {
+		if env := os.Getenv("REPORT_INTERVAL"); env != "" {
+			if v, err := strconv.Atoi(env); err == nil {
+				cfg.ReportInterval = v
+				return
+			}
 		}
+		cfg.ReportInterval = reportFlag
 	}
 }
 
-func parseNumWorkersFlag() {
-	flag.IntVar(&numWorkersFlag, "workers", 4, "Number of worker goroutines")
-	if env := os.Getenv("NUM_WORKERS"); env != "" {
-		if v, err := strconv.Atoi(env); err == nil {
-			numWorkersFlag = v
+func withNumWorkers(fs *flag.FlagSet) configs.AgentOption {
+	var workersFlag int
+	fs.IntVar(&workersFlag, "workers", 4, "number of workers")
+
+	return func(cfg *configs.AgentConfig) {
+		if env := os.Getenv("NUM_WORKERS"); env != "" {
+			if v, err := strconv.Atoi(env); err == nil {
+				cfg.NumWorkers = v
+				return
+			}
 		}
+		cfg.NumWorkers = workersFlag
+	}
+}
+
+func withLogLevel(fs *flag.FlagSet) configs.AgentOption {
+	var levelFlag string
+	fs.StringVar(&levelFlag, "l", "info", "log level")
+
+	return func(cfg *configs.AgentConfig) {
+		if env := os.Getenv("LOG_LEVEL"); env != "" {
+			cfg.LogLevel = env
+			return
+		}
+		cfg.LogLevel = levelFlag
 	}
 }

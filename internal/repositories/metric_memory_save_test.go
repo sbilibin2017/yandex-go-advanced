@@ -30,7 +30,7 @@ func TestMetricMemorySaveRepository_Save(t *testing.T) {
 			name: "save counter metric",
 			input: types.Metrics{
 				ID:    "metric1",
-				MType: types.Counter,
+				Type:  types.Counter,
 				Delta: ptrInt64(10),
 			},
 		},
@@ -38,15 +38,15 @@ func TestMetricMemorySaveRepository_Save(t *testing.T) {
 			name: "save gauge metric",
 			input: types.Metrics{
 				ID:    "metric2",
-				MType: types.Gauge,
+				Type:  types.Gauge,
 				Value: ptrFloat64(3.14),
 			},
 		},
 		{
 			name: "save metric without optional values",
 			input: types.Metrics{
-				ID:    "metric3",
-				MType: types.Gauge,
+				ID:   "metric3",
+				Type: types.Gauge,
 			},
 		},
 	}
@@ -56,7 +56,7 @@ func TestMetricMemorySaveRepository_Save(t *testing.T) {
 			err := repo.Save(ctx, tt.input)
 			assert.NoError(t, err)
 
-			key := types.MetricID{ID: tt.input.ID, MType: tt.input.MType}
+			key := types.MetricID{ID: tt.input.ID, Type: tt.input.Type}
 
 			mu.RLock()
 			savedMetric, ok := metrics[key]

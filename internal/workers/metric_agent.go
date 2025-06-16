@@ -2,21 +2,32 @@ package workers
 
 import (
 	"context"
-	"fmt"
 	"math/rand/v2"
 	"runtime"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/go-resty/resty/v2"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
-func StartMetricAgentWorker(
+type MetricUpdater interface {
+	Update(ctx context.Context, metrics []types.Metrics) error
+}
+
+func NewMetricAgentWorker(
+	updater MetricUpdater,
+	pollInterval int,
+	reportInterval int,
+	workerCount int,
+) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		return startMetricAgentWorker(ctx, updater, pollInterval, reportInterval, workerCount)
+	}
+}
+
+func startMetricAgentWorker(
 	ctx context.Context,
-	serverAddress string,
+	updater MetricUpdater,
 	pollInterval int,
 	reportInterval int,
 	workerCount int,
@@ -26,7 +37,7 @@ func StartMetricAgentWorker(
 		collectRuntimeCounterMetrics,
 	}
 	metricsCh := pollMetrics(ctx, pollInterval, collectors...)
-	errCh := reportMetrics(ctx, serverAddress, sendMetrics, reportInterval, workerCount, metricsCh)
+	errCh := reportMetrics(ctx, updater, reportInterval, workerCount, metricsCh)
 	err := waitForContextOrError(ctx, errCh)
 	return err
 }
@@ -38,34 +49,34 @@ func collectRuntimeGaugeMetrics() []types.Metrics {
 	floatPtr := func(f float64) *float64 { return &f }
 
 	return []types.Metrics{
-		{MType: types.Gauge, ID: "Alloc", Value: floatPtr(float64(memStats.Alloc))},
-		{MType: types.Gauge, ID: "BuckHashSys", Value: floatPtr(float64(memStats.BuckHashSys))},
-		{MType: types.Gauge, ID: "Frees", Value: floatPtr(float64(memStats.Frees))},
-		{MType: types.Gauge, ID: "GCCPUFraction", Value: floatPtr(memStats.GCCPUFraction)},
-		{MType: types.Gauge, ID: "GCSys", Value: floatPtr(float64(memStats.GCSys))},
-		{MType: types.Gauge, ID: "HeapAlloc", Value: floatPtr(float64(memStats.HeapAlloc))},
-		{MType: types.Gauge, ID: "HeapIdle", Value: floatPtr(float64(memStats.HeapIdle))},
-		{MType: types.Gauge, ID: "HeapInuse", Value: floatPtr(float64(memStats.HeapInuse))},
-		{MType: types.Gauge, ID: "HeapObjects", Value: floatPtr(float64(memStats.HeapObjects))},
-		{MType: types.Gauge, ID: "HeapReleased", Value: floatPtr(float64(memStats.HeapReleased))},
-		{MType: types.Gauge, ID: "HeapSys", Value: floatPtr(float64(memStats.HeapSys))},
-		{MType: types.Gauge, ID: "LastGC", Value: floatPtr(float64(memStats.LastGC))},
-		{MType: types.Gauge, ID: "Lookups", Value: floatPtr(float64(memStats.Lookups))},
-		{MType: types.Gauge, ID: "MCacheInuse", Value: floatPtr(float64(memStats.MCacheInuse))},
-		{MType: types.Gauge, ID: "MCacheSys", Value: floatPtr(float64(memStats.MCacheSys))},
-		{MType: types.Gauge, ID: "MSpanInuse", Value: floatPtr(float64(memStats.MSpanInuse))},
-		{MType: types.Gauge, ID: "MSpanSys", Value: floatPtr(float64(memStats.MSpanSys))},
-		{MType: types.Gauge, ID: "Mallocs", Value: floatPtr(float64(memStats.Mallocs))},
-		{MType: types.Gauge, ID: "NextGC", Value: floatPtr(float64(memStats.NextGC))},
-		{MType: types.Gauge, ID: "NumForcedGC", Value: floatPtr(float64(memStats.NumForcedGC))},
-		{MType: types.Gauge, ID: "NumGC", Value: floatPtr(float64(memStats.NumGC))},
-		{MType: types.Gauge, ID: "OtherSys", Value: floatPtr(float64(memStats.OtherSys))},
-		{MType: types.Gauge, ID: "PauseTotalNs", Value: floatPtr(float64(memStats.PauseTotalNs))},
-		{MType: types.Gauge, ID: "StackInuse", Value: floatPtr(float64(memStats.StackInuse))},
-		{MType: types.Gauge, ID: "StackSys", Value: floatPtr(float64(memStats.StackSys))},
-		{MType: types.Gauge, ID: "Sys", Value: floatPtr(float64(memStats.Sys))},
-		{MType: types.Gauge, ID: "TotalAlloc", Value: floatPtr(float64(memStats.TotalAlloc))},
-		{MType: types.Gauge, ID: "RandomValue", Value: floatPtr(rand.Float64() * 100)},
+		{Type: types.Gauge, ID: "Alloc", Value: floatPtr(float64(memStats.Alloc))},
+		{Type: types.Gauge, ID: "BuckHashSys", Value: floatPtr(float64(memStats.BuckHashSys))},
+		{Type: types.Gauge, ID: "Frees", Value: floatPtr(float64(memStats.Frees))},
+		{Type: types.Gauge, ID: "GCCPUFraction", Value: floatPtr(memStats.GCCPUFraction)},
+		{Type: types.Gauge, ID: "GCSys", Value: floatPtr(float64(memStats.GCSys))},
+		{Type: types.Gauge, ID: "HeapAlloc", Value: floatPtr(float64(memStats.HeapAlloc))},
+		{Type: types.Gauge, ID: "HeapIdle", Value: floatPtr(float64(memStats.HeapIdle))},
+		{Type: types.Gauge, ID: "HeapInuse", Value: floatPtr(float64(memStats.HeapInuse))},
+		{Type: types.Gauge, ID: "HeapObjects", Value: floatPtr(float64(memStats.HeapObjects))},
+		{Type: types.Gauge, ID: "HeapReleased", Value: floatPtr(float64(memStats.HeapReleased))},
+		{Type: types.Gauge, ID: "HeapSys", Value: floatPtr(float64(memStats.HeapSys))},
+		{Type: types.Gauge, ID: "LastGC", Value: floatPtr(float64(memStats.LastGC))},
+		{Type: types.Gauge, ID: "Lookups", Value: floatPtr(float64(memStats.Lookups))},
+		{Type: types.Gauge, ID: "MCacheInuse", Value: floatPtr(float64(memStats.MCacheInuse))},
+		{Type: types.Gauge, ID: "MCacheSys", Value: floatPtr(float64(memStats.MCacheSys))},
+		{Type: types.Gauge, ID: "MSpanInuse", Value: floatPtr(float64(memStats.MSpanInuse))},
+		{Type: types.Gauge, ID: "MSpanSys", Value: floatPtr(float64(memStats.MSpanSys))},
+		{Type: types.Gauge, ID: "Mallocs", Value: floatPtr(float64(memStats.Mallocs))},
+		{Type: types.Gauge, ID: "NextGC", Value: floatPtr(float64(memStats.NextGC))},
+		{Type: types.Gauge, ID: "NumForcedGC", Value: floatPtr(float64(memStats.NumForcedGC))},
+		{Type: types.Gauge, ID: "NumGC", Value: floatPtr(float64(memStats.NumGC))},
+		{Type: types.Gauge, ID: "OtherSys", Value: floatPtr(float64(memStats.OtherSys))},
+		{Type: types.Gauge, ID: "PauseTotalNs", Value: floatPtr(float64(memStats.PauseTotalNs))},
+		{Type: types.Gauge, ID: "StackInuse", Value: floatPtr(float64(memStats.StackInuse))},
+		{Type: types.Gauge, ID: "StackSys", Value: floatPtr(float64(memStats.StackSys))},
+		{Type: types.Gauge, ID: "Sys", Value: floatPtr(float64(memStats.Sys))},
+		{Type: types.Gauge, ID: "TotalAlloc", Value: floatPtr(float64(memStats.TotalAlloc))},
+		{Type: types.Gauge, ID: "RandomValue", Value: floatPtr(rand.Float64() * 100)},
 	}
 }
 
@@ -73,7 +84,7 @@ func collectRuntimeCounterMetrics() []types.Metrics {
 	intPtr := func(i int64) *int64 { return &i }
 
 	return []types.Metrics{
-		{MType: types.Counter, ID: "PollCount", Delta: intPtr(1)},
+		{Type: types.Counter, ID: "PollCount", Delta: intPtr(1)},
 	}
 }
 
@@ -109,53 +120,9 @@ func pollMetrics(
 	return out
 }
 
-func sendMetrics(
-	ctx context.Context,
-	serverAddress string,
-	metrics types.Metrics,
-) error {
-	client := resty.New()
-
-	if !strings.HasPrefix(serverAddress, "http://") && !strings.HasPrefix(serverAddress, "https://") {
-		serverAddress = "http://" + serverAddress
-	}
-
-	var value string
-	switch metrics.MType {
-	case types.Counter:
-		if metrics.Delta == nil {
-			return fmt.Errorf("delta value is nil for Counter metric")
-		}
-		value = strconv.FormatInt(*metrics.Delta, 10)
-	case types.Gauge:
-		if metrics.Value == nil {
-			return fmt.Errorf("value is nil for Gauge metric")
-		}
-		value = strconv.FormatFloat(*metrics.Value, 'f', -1, 64)
-	default:
-		return fmt.Errorf("unknown metric type: %s", metrics.MType)
-	}
-
-	url := fmt.Sprintf("%s/update/%s/%s/%s", serverAddress, metrics.MType, metrics.ID, value)
-
-	resp, err := client.R().
-		SetContext(ctx).
-		Post(url)
-	if err != nil {
-		return err
-	}
-
-	if resp.IsError() {
-		return fmt.Errorf("failed to send metrics: %s", resp.Status())
-	}
-
-	return nil
-}
-
 func reportMetrics(
 	ctx context.Context,
-	serverAddress string,
-	handler func(ctx context.Context, serverAddress string, metrics types.Metrics) error,
+	updater MetricUpdater,
 	reportInterval int,
 	workerCount int,
 	in <-chan types.Metrics,
@@ -175,7 +142,7 @@ func reportMetrics(
 				if !ok {
 					return
 				}
-				if err := handler(ctx, serverAddress, metric); err != nil {
+				if err := updater.Update(ctx, []types.Metrics{metric}); err != nil {
 					errCh <- err
 				}
 			}

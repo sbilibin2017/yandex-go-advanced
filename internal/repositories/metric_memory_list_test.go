@@ -25,14 +25,14 @@ func TestMetricMemoryListRepository_List(t *testing.T) {
 		return &i
 	}
 
-	metric1 := types.Metrics{ID: "metricB", MType: types.Gauge, Value: ptrFloat64(3.14)}
-	metric2 := types.Metrics{ID: "metricA", MType: types.Counter, Delta: ptrInt64(42)}
-	metric3 := types.Metrics{ID: "metricC", MType: types.Gauge, Value: ptrFloat64(2.71)}
+	metric1 := types.Metrics{ID: "metricB", Type: types.Gauge, Value: ptrFloat64(3.14)}
+	metric2 := types.Metrics{ID: "metricA", Type: types.Counter, Delta: ptrInt64(42)}
+	metric3 := types.Metrics{ID: "metricC", Type: types.Gauge, Value: ptrFloat64(2.71)}
 
 	mu.Lock()
-	metrics[types.MetricID{ID: metric1.ID, MType: metric1.MType}] = metric1
-	metrics[types.MetricID{ID: metric2.ID, MType: metric2.MType}] = metric2
-	metrics[types.MetricID{ID: metric3.ID, MType: metric3.MType}] = metric3
+	metrics[types.MetricID{ID: metric1.ID, Type: metric1.Type}] = metric1
+	metrics[types.MetricID{ID: metric2.ID, Type: metric2.Type}] = metric2
+	metrics[types.MetricID{ID: metric3.ID, Type: metric3.Type}] = metric3
 	mu.Unlock()
 
 	tests := []struct {

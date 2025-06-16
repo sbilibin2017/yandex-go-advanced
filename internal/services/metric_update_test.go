@@ -50,7 +50,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 				metrics: []types.Metrics{
 					{
 						ID:    "metric1",
-						MType: types.Counter,
+						Type:  types.Counter,
 						Delta: ptrInt64(10),
 					},
 				},
@@ -59,16 +59,16 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 			setup: func(f fields, args args) {
 				existing := &types.Metrics{
 					ID:    "metric1",
-					MType: types.Counter,
+					Type:  types.Counter,
 					Delta: ptrInt64(5),
 				}
 				f.getter.EXPECT().
-					Get(gomock.Any(), types.MetricID{ID: "metric1", MType: types.Counter}).
+					Get(gomock.Any(), types.MetricID{ID: "metric1", Type: types.Counter}).
 					Return(existing, nil)
 				f.saver.EXPECT().
 					Save(gomock.Any(), types.Metrics{
 						ID:    "metric1",
-						MType: types.Counter,
+						Type:  types.Counter,
 						Delta: ptrInt64(15),
 					}).
 					Return(nil)
@@ -84,7 +84,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 				metrics: []types.Metrics{
 					{
 						ID:    "metric2",
-						MType: types.Gauge,
+						Type:  types.Gauge,
 						Value: ptrFloat64(3.14),
 					},
 				},
@@ -106,7 +106,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 				metrics: []types.Metrics{
 					{
 						ID:    "metric3",
-						MType: types.Counter,
+						Type:  types.Counter,
 						Delta: ptrInt64(1),
 					},
 				},
@@ -114,7 +114,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 			want: want{err: true},
 			setup: func(f fields, args args) {
 				f.getter.EXPECT().
-					Get(gomock.Any(), types.MetricID{ID: "metric3", MType: types.Counter}).
+					Get(gomock.Any(), types.MetricID{ID: "metric3", Type: types.Counter}).
 					Return(nil, errors.New("getter error"))
 			},
 		},
@@ -128,7 +128,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 				metrics: []types.Metrics{
 					{
 						ID:    "metric4",
-						MType: types.Gauge,
+						Type:  types.Gauge,
 						Value: ptrFloat64(2.71),
 					},
 				},

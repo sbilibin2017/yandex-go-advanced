@@ -1,7 +1,14 @@
 package main
 
+import "context"
+
 func main() {
-	err := run()
+	config, err := parseFlags()
+	if err != nil {
+		panic(err)
+	}
+
+	err = run(context.Background(), config)
 	if err != nil {
 		panic(err)
 	}
