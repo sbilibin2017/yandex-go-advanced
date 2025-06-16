@@ -5,6 +5,7 @@ import (
 
 	"github.com/sbilibin2017/yandex-go-advanced/internal/configs"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/handlers"
+	"github.com/sbilibin2017/yandex-go-advanced/internal/middlewares"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/repositories"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/routers"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/services"
@@ -30,10 +31,14 @@ func NewServerApp(config *configs.ServerConfig) (*http.Server, error) {
 	)
 	metricListHTMLHandler := handlers.NewMetricListHTMLHandler(metricListService)
 
+	middlewareList := []func(next http.Handler) http.Handler{
+		middlewares.LoggingMiddleware,
+	}
 	metricRouter := routers.NewMetricRouter(
 		metricUpdatePathHandler,
 		metricGetPathHandler,
 		metricListHTMLHandler,
+		middlewareList...,
 	)
 
 	return &http.Server{
