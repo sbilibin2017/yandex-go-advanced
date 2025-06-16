@@ -4,17 +4,9 @@ import (
 	"context"
 )
 
-func RunWorker(ctx context.Context, worker func(ctx context.Context) error) error {
-	errCh := make(chan error, 1)
-
+func RunWorker(ctx context.Context, worker func(ctx context.Context)) {
 	go func() {
-		errCh <- worker(ctx)
+		worker(ctx)
 	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		return err
-	}
+	<-ctx.Done()
 }

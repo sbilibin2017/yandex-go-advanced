@@ -26,14 +26,46 @@ func ValidateMetricAttributes(metricType, metricName, metricValue string) error 
 	}
 
 	switch metricType {
-	case string(types.Counter):
+	case types.Counter:
 		_, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
 			return errors.ErrMetricValueInvalid
 		}
-	case string(types.Gauge):
+	case types.Gauge:
 		_, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
+			return errors.ErrMetricValueInvalid
+		}
+	}
+
+	return nil
+}
+
+func ValidateMetricID(id types.MetricID) error {
+	if id.ID == "" {
+		return errors.ErrMetricIDInvalid
+	}
+
+	if id.Type != types.Counter && id.Type != types.Gauge {
+		return errors.ErrMetricTypeInvalid
+	}
+
+	return nil
+}
+
+func ValidateMetric(metric types.Metrics) error {
+	err := ValidateMetricID(types.MetricID{ID: metric.ID, Type: metric.Type})
+	if err != nil {
+		return err
+	}
+
+	switch metric.Type {
+	case types.Counter:
+		if metric.Delta == nil {
+			return errors.ErrMetricDeltaInvalid
+		}
+	case types.Gauge:
+		if metric.Value == nil {
 			return errors.ErrMetricValueInvalid
 		}
 	}

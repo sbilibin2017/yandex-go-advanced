@@ -2,7 +2,7 @@ build-server:
 	go build -o ./cmd/server/server ./cmd/server/
 
 run-server:
-	./cmd/server/server -d "postgres://testuser:testpass@localhost:5432/testdb?sslmode=disable"
+	./cmd/server/server 
 
 build-agent:
 	go build -o ./cmd/agent/agent ./cmd/agent/

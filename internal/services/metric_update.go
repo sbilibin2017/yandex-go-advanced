@@ -28,24 +28,24 @@ func NewMetricUpdateService(
 
 func (svc *MetricUpdateService) Update(
 	ctx context.Context,
-	metrics []types.Metrics,
-) error {
-	for _, m := range metrics {
-		metric := &m
+	metrics []*types.Metrics,
+) ([]*types.Metrics, error) {
+	for idx, m := range metrics {
 		switch m.Type {
 		case types.Counter:
-			if err := updateCounterMetric(ctx, svc.getter, metric); err != nil {
-				return err
+			if err := updateCounterMetric(ctx, svc.getter, m); err != nil {
+				return nil, err
 			}
 		}
 
-		err := svc.saver.Save(ctx, *metric)
+		err := svc.saver.Save(ctx, *m)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		metrics[idx] = m
 	}
 
-	return nil
+	return metrics, nil
 }
 
 func updateCounterMetric(

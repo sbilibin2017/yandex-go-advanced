@@ -25,8 +25,16 @@ func NewServerApp(config *configs.ServerConfig) (*http.Server, error) {
 		validators.ValidateMetricAttributes,
 		metricUpdateService,
 	)
+	metricUpdateBodyHandler := handlers.NewMetricUpdateBodyHandler(
+		validators.ValidateMetric,
+		metricUpdateService,
+	)
 	metricGetPathHandler := handlers.NewMetricGetPathHandler(
 		validators.ValidateMetricIDAttributes,
+		metricGetService,
+	)
+	metricGetBodyHandler := handlers.NewMetricGetBodyHandler(
+		validators.ValidateMetricID,
 		metricGetService,
 	)
 	metricListHTMLHandler := handlers.NewMetricListHTMLHandler(metricListService)
@@ -36,7 +44,9 @@ func NewServerApp(config *configs.ServerConfig) (*http.Server, error) {
 	}
 	metricRouter := routers.NewMetricRouter(
 		metricUpdatePathHandler,
+		metricUpdateBodyHandler,
 		metricGetPathHandler,
+		metricGetBodyHandler,
 		metricListHTMLHandler,
 		middlewareList...,
 	)

@@ -2,26 +2,25 @@ package workers
 
 import (
 	"context"
-	"math/rand/v2"
+	"math/rand"
 	"runtime"
-	"sync"
 	"time"
 
+	"github.com/sbilibin2017/yandex-go-advanced/internal/logger"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
 type MetricUpdater interface {
-	Update(ctx context.Context, metrics []types.Metrics) error
+	Update(ctx context.Context, metrics []*types.Metrics) error
 }
 
 func NewMetricAgentWorker(
 	updater MetricUpdater,
 	pollInterval int,
 	reportInterval int,
-	workerCount int,
-) func(ctx context.Context) error {
-	return func(ctx context.Context) error {
-		return startMetricAgentWorker(ctx, updater, pollInterval, reportInterval, workerCount)
+) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		startMetricAgentWorker(ctx, updater, pollInterval, reportInterval)
 	}
 }
 
@@ -30,76 +29,18 @@ func startMetricAgentWorker(
 	updater MetricUpdater,
 	pollInterval int,
 	reportInterval int,
-	workerCount int,
-) error {
-	collectors := []func() []types.Metrics{
-		collectRuntimeGaugeMetrics,
-		collectRuntimeCounterMetrics,
-	}
-	metricsCh := pollMetrics(ctx, pollInterval, collectors...)
-	errCh := reportMetrics(ctx, updater, reportInterval, workerCount, metricsCh)
-	err := waitForContextOrError(ctx, errCh)
-	return err
+) {
+	pollCh := collectRuntimeMetrics(ctx, pollInterval)
+	reportCh := updateMetrics(ctx, reportInterval, updater, pollCh)
+	logErrors(ctx, reportCh)
 }
 
-func collectRuntimeGaugeMetrics() []types.Metrics {
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-
-	floatPtr := func(f float64) *float64 { return &f }
-
-	return []types.Metrics{
-		{Type: types.Gauge, ID: "Alloc", Value: floatPtr(float64(memStats.Alloc))},
-		{Type: types.Gauge, ID: "BuckHashSys", Value: floatPtr(float64(memStats.BuckHashSys))},
-		{Type: types.Gauge, ID: "Frees", Value: floatPtr(float64(memStats.Frees))},
-		{Type: types.Gauge, ID: "GCCPUFraction", Value: floatPtr(memStats.GCCPUFraction)},
-		{Type: types.Gauge, ID: "GCSys", Value: floatPtr(float64(memStats.GCSys))},
-		{Type: types.Gauge, ID: "HeapAlloc", Value: floatPtr(float64(memStats.HeapAlloc))},
-		{Type: types.Gauge, ID: "HeapIdle", Value: floatPtr(float64(memStats.HeapIdle))},
-		{Type: types.Gauge, ID: "HeapInuse", Value: floatPtr(float64(memStats.HeapInuse))},
-		{Type: types.Gauge, ID: "HeapObjects", Value: floatPtr(float64(memStats.HeapObjects))},
-		{Type: types.Gauge, ID: "HeapReleased", Value: floatPtr(float64(memStats.HeapReleased))},
-		{Type: types.Gauge, ID: "HeapSys", Value: floatPtr(float64(memStats.HeapSys))},
-		{Type: types.Gauge, ID: "LastGC", Value: floatPtr(float64(memStats.LastGC))},
-		{Type: types.Gauge, ID: "Lookups", Value: floatPtr(float64(memStats.Lookups))},
-		{Type: types.Gauge, ID: "MCacheInuse", Value: floatPtr(float64(memStats.MCacheInuse))},
-		{Type: types.Gauge, ID: "MCacheSys", Value: floatPtr(float64(memStats.MCacheSys))},
-		{Type: types.Gauge, ID: "MSpanInuse", Value: floatPtr(float64(memStats.MSpanInuse))},
-		{Type: types.Gauge, ID: "MSpanSys", Value: floatPtr(float64(memStats.MSpanSys))},
-		{Type: types.Gauge, ID: "Mallocs", Value: floatPtr(float64(memStats.Mallocs))},
-		{Type: types.Gauge, ID: "NextGC", Value: floatPtr(float64(memStats.NextGC))},
-		{Type: types.Gauge, ID: "NumForcedGC", Value: floatPtr(float64(memStats.NumForcedGC))},
-		{Type: types.Gauge, ID: "NumGC", Value: floatPtr(float64(memStats.NumGC))},
-		{Type: types.Gauge, ID: "OtherSys", Value: floatPtr(float64(memStats.OtherSys))},
-		{Type: types.Gauge, ID: "PauseTotalNs", Value: floatPtr(float64(memStats.PauseTotalNs))},
-		{Type: types.Gauge, ID: "StackInuse", Value: floatPtr(float64(memStats.StackInuse))},
-		{Type: types.Gauge, ID: "StackSys", Value: floatPtr(float64(memStats.StackSys))},
-		{Type: types.Gauge, ID: "Sys", Value: floatPtr(float64(memStats.Sys))},
-		{Type: types.Gauge, ID: "TotalAlloc", Value: floatPtr(float64(memStats.TotalAlloc))},
-		{Type: types.Gauge, ID: "RandomValue", Value: floatPtr(rand.Float64() * 100)},
-	}
-}
-
-func collectRuntimeCounterMetrics() []types.Metrics {
-	intPtr := func(i int64) *int64 { return &i }
-
-	return []types.Metrics{
-		{Type: types.Counter, ID: "PollCount", Delta: intPtr(1)},
-	}
-}
-
-func pollMetrics(
-	ctx context.Context,
-	pollInterval int,
-	collectors ...func() []types.Metrics,
-) <-chan types.Metrics {
-	out := make(chan types.Metrics, 100)
+func collectRuntimeMetrics(ctx context.Context, pollInterval int) <-chan *types.Metrics {
+	out := make(chan *types.Metrics)
 
 	go func() {
 		defer close(out)
-
-		interval := time.Duration(pollInterval) * time.Second
-		ticker := time.NewTicker(interval)
+		ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
 		defer ticker.Stop()
 
 		for {
@@ -107,12 +48,46 @@ func pollMetrics(
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				for _, collect := range collectors {
-					metrics := collect()
-					for _, metric := range metrics {
-						out <- metric
-					}
+				ms := &runtime.MemStats{}
+				runtime.ReadMemStats(ms)
+
+				sendGauge := func(name string, val float64) {
+					out <- &types.Metrics{ID: name, Type: "gauge", Value: &val}
 				}
+
+				sendGauge("Alloc", float64(ms.Alloc))
+				sendGauge("BuckHashSys", float64(ms.BuckHashSys))
+				sendGauge("Frees", float64(ms.Frees))
+				sendGauge("GCCPUFraction", ms.GCCPUFraction)
+				sendGauge("GCSys", float64(ms.GCSys))
+				sendGauge("HeapAlloc", float64(ms.HeapAlloc))
+				sendGauge("HeapIdle", float64(ms.HeapIdle))
+				sendGauge("HeapInuse", float64(ms.HeapInuse))
+				sendGauge("HeapObjects", float64(ms.HeapObjects))
+				sendGauge("HeapReleased", float64(ms.HeapReleased))
+				sendGauge("HeapSys", float64(ms.HeapSys))
+				sendGauge("LastGC", float64(ms.LastGC))
+				sendGauge("Lookups", float64(ms.Lookups))
+				sendGauge("MCacheInuse", float64(ms.MCacheInuse))
+				sendGauge("MCacheSys", float64(ms.MCacheSys))
+				sendGauge("MSpanInuse", float64(ms.MSpanInuse))
+				sendGauge("MSpanSys", float64(ms.MSpanSys))
+				sendGauge("Mallocs", float64(ms.Mallocs))
+				sendGauge("NextGC", float64(ms.NextGC))
+				sendGauge("NumForcedGC", float64(ms.NumForcedGC))
+				sendGauge("NumGC", float64(ms.NumGC))
+				sendGauge("OtherSys", float64(ms.OtherSys))
+				sendGauge("PauseTotalNs", float64(ms.PauseTotalNs))
+				sendGauge("StackInuse", float64(ms.StackInuse))
+				sendGauge("StackSys", float64(ms.StackSys))
+				sendGauge("Sys", float64(ms.Sys))
+				sendGauge("TotalAlloc", float64(ms.TotalAlloc))
+
+				c := int64(1)
+				out <- &types.Metrics{ID: "PollCount", Type: "counter", Delta: &c}
+
+				rv := rand.Float64()
+				out <- &types.Metrics{ID: "RandomValue", Type: "gauge", Value: &rv}
 			}
 		}
 	}()
@@ -120,87 +95,70 @@ func pollMetrics(
 	return out
 }
 
-func reportMetrics(
+func updateMetrics(
 	ctx context.Context,
-	updater MetricUpdater,
 	reportInterval int,
-	workerCount int,
-	in <-chan types.Metrics,
+	updater MetricUpdater,
+	in <-chan *types.Metrics,
 ) <-chan error {
-	errCh := make(chan error, 100)
-	jobs := make(chan types.Metrics, 100)
-
-	var wg sync.WaitGroup
-
-	worker := func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case metric, ok := <-jobs:
-				if !ok {
-					return
-				}
-				if err := updater.Update(ctx, []types.Metrics{metric}); err != nil {
-					errCh <- err
-				}
-			}
-		}
-	}
-
-	wg.Add(workerCount)
-	for i := 0; i < workerCount; i++ {
-		go worker()
-	}
+	errCh := make(chan error)
+	ticker := time.NewTicker(time.Duration(reportInterval) * time.Second)
 
 	go func() {
-		defer close(jobs)
-		ticker := time.NewTicker(time.Duration(reportInterval) * time.Second)
+		defer close(errCh)
 		defer ticker.Stop()
 
-		var buffer []types.Metrics
-
-		flush := func() {
-			for _, metric := range buffer {
-				jobs <- metric
-			}
-			buffer = buffer[:0]
-		}
+		var buffer []*types.Metrics
 
 		for {
 			select {
 			case <-ctx.Done():
-				flush()
+				if len(buffer) > 0 {
+					if err := updater.Update(ctx, buffer); err != nil {
+						errCh <- err
+					}
+				}
 				return
-			case metric, ok := <-in:
+
+			case m, ok := <-in:
 				if !ok {
-					flush()
+					if len(buffer) > 0 {
+						if err := updater.Update(ctx, buffer); err != nil {
+							errCh <- err
+						}
+					}
 					return
 				}
-				buffer = append(buffer, metric)
+				buffer = append(buffer, m)
+
 			case <-ticker.C:
-				flush()
+				if len(buffer) > 0 {
+					if err := updater.Update(ctx, buffer); err != nil {
+						errCh <- err
+					}
+					buffer = buffer[:0]
+				}
 			}
 		}
-	}()
-
-	go func() {
-		wg.Wait()
-		close(errCh)
 	}()
 
 	return errCh
 }
 
-func waitForContextOrError(ctx context.Context, errCh <-chan error) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err, ok := <-errCh:
-		if !ok {
-			return nil
+func logErrors(ctx context.Context, errCh <-chan error) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case err, ok := <-errCh:
+				if !ok {
+					return
+				}
+				if err != nil {
+					logger.Log.Error("update error: ", err)
+				}
+			}
 		}
-		return err
-	}
+	}()
 }

@@ -1,7 +1,6 @@
 package apps
 
 import (
-	"context"
 	"testing"
 
 	"github.com/sbilibin2017/yandex-go-advanced/internal/configs"
@@ -18,13 +17,7 @@ func TestNewAgentApp(t *testing.T) {
 
 	worker, err := NewAgentApp(config)
 
-	assert.NoError(t, err)
 	assert.NotNil(t, worker)
+	assert.Nil(t, err)
 
-	// Optional: test that worker function runs without error for a short time with canceled context
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	err = worker(ctx)
-	assert.ErrorIs(t, err, context.Canceled)
 }

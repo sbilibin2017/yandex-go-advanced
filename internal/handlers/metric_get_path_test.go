@@ -2,111 +2,154 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	gomock "github.com/golang/mock/gomock"
-	internalErrors "github.com/sbilibin2017/yandex-go-advanced/internal/errors"
-	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
+	internalErrors "github.com/sbilibin2017/yandex-go-advanced/internal/errors"
+
+	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
-func TestMetricGetPathHandler(t *testing.T) {
-	dummyValidator := func(expectedErr error) func(string, string) error {
-		return func(mt, mn string) error {
+func TestNewMetricGetPathHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	int64Ptr := func(i int64) *int64 { return &i }
+	float64Ptr := func(f float64) *float64 { return &f }
+
+	mockSvc := NewMockMetricPathGetter(ctrl)
+
+	validate := func(expectedErr error) func(string, string) error {
+		return func(metricType, metricName string) error {
 			return expectedErr
 		}
 	}
 
 	tests := []struct {
-		name           string
-		urlParams      map[string]string
-		validatorError error
-		serviceReturn  *types.Metrics
-		serviceError   error
-		expectedCode   int
-		expectedBody   string
+		name         string
+		metricType   string
+		metricName   string
+		validateFunc func(string, string) error
+		setupMock    func()
+		wantCode     int
+		wantBody     string
 	}{
 		{
-			name:           "valid request returns metric",
-			urlParams:      map[string]string{"type": "gauge", "name": "temperature"},
-			validatorError: nil,
-			serviceReturn:  types.NewMetric("gauge", "temperature", "123.45"),
-			serviceError:   nil,
-			expectedCode:   http.StatusOK,
-			expectedBody:   "123.45",
+			name:         "validation error",
+			metricType:   "gauge",
+			metricName:   "name",
+			validateFunc: validate(internalErrors.ErrMetricTypeInvalid),
+			wantCode:     http.StatusBadRequest,
+			wantBody:     internalErrors.ErrMetricTypeInvalid.Error() + "\n",
 		},
 		{
-			name:           "validator error - metric name missing",
-			urlParams:      map[string]string{"type": "gauge", "name": ""},
-			validatorError: internalErrors.ErrMetricNameMissing,
-			serviceReturn:  nil,
-			serviceError:   nil,
-			expectedCode:   http.StatusNotFound,
-			expectedBody:   internalErrors.ErrMetricNameMissing.Error() + "\n",
+			name:         "service returns error",
+			metricType:   "gauge",
+			metricName:   "name",
+			validateFunc: validate(nil),
+			setupMock: func() {
+				mockSvc.EXPECT().
+					Get(gomock.Any(), types.MetricID{
+						ID:   "name",
+						Type: "gauge",
+					}).
+					Return(nil, internalErrors.ErrInternalServerError)
+			},
+			wantCode: http.StatusInternalServerError,
+			wantBody: internalErrors.ErrInternalServerError.Error() + "\n",
 		},
 		{
-			name:           "validator error - metric type invalid",
-			urlParams:      map[string]string{"type": "invalid", "name": "temperature"},
-			validatorError: internalErrors.ErrMetricTypeInvalid,
-			serviceReturn:  nil,
-			serviceError:   nil,
-			expectedCode:   http.StatusBadRequest,
-			expectedBody:   internalErrors.ErrMetricTypeInvalid.Error() + "\n",
+			name:         "service returns nil metric",
+			metricType:   "gauge",
+			metricName:   "name",
+			validateFunc: validate(nil),
+			setupMock: func() {
+				mockSvc.EXPECT().
+					Get(gomock.Any(), types.MetricID{
+						ID:   "name",
+						Type: "gauge",
+					}).
+					Return(nil, nil)
+			},
+			wantCode: http.StatusNotFound,
+			wantBody: internalErrors.ErrMetricNotFound.Error() + "\n",
 		},
 		{
-			name:           "service returns error",
-			urlParams:      map[string]string{"type": "gauge", "name": "temperature"},
-			validatorError: nil,
-			serviceReturn:  nil,
-			serviceError:   errors.New("db failure"),
-			expectedCode:   http.StatusInternalServerError,
-			expectedBody:   internalErrors.ErrInternalServerError.Error() + "\n",
+			name:         "success returns metric string value (Value set)",
+			metricType:   "gauge",
+			metricName:   "name",
+			validateFunc: validate(nil),
+			setupMock: func() {
+				m := &types.Metrics{
+					ID:    "name",
+					Type:  "gauge",
+					Value: float64Ptr(42.42),
+				}
+				mockSvc.EXPECT().
+					Get(gomock.Any(), types.MetricID{
+						ID:   "name",
+						Type: "gauge",
+					}).
+					Return(m, nil)
+			},
+			wantCode: http.StatusOK,
+			wantBody: "42.42",
 		},
 		{
-			name:           "service returns nil metric (not found)",
-			urlParams:      map[string]string{"type": "gauge", "name": "temperature"},
-			validatorError: nil,
-			serviceReturn:  nil,
-			serviceError:   nil,
-			expectedCode:   http.StatusNotFound, // <-- fixed to NotFound here
-			expectedBody:   internalErrors.ErrMetricNotFound.Error() + "\n",
+			name:         "success returns metric string value (Delta set)",
+			metricType:   "counter",
+			metricName:   "name",
+			validateFunc: validate(nil),
+			setupMock: func() {
+				m := &types.Metrics{
+					ID:    "name",
+					Type:  "counter",
+					Delta: int64Ptr(100),
+				}
+				mockSvc.EXPECT().
+					Get(gomock.Any(), types.MetricID{
+						ID:   "name",
+						Type: "counter",
+					}).
+					Return(m, nil)
+			},
+			wantCode: http.StatusOK,
+			wantBody: "100",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockSvc := NewMockMetricPathGetter(ctrl)
-
-			if tt.validatorError == nil {
-				id := *types.NewMetricID(tt.urlParams["type"], tt.urlParams["name"])
-				mockSvc.EXPECT().
-					Get(gomock.Any(), id).
-					Return(tt.serviceReturn, tt.serviceError).
-					Times(1)
+			if tt.setupMock != nil {
+				tt.setupMock()
 			}
 
-			handler := NewMetricGetPathHandler(dummyValidator(tt.validatorError), mockSvc)
+			req := httptest.NewRequest(http.MethodGet,
+				"/metric/"+tt.metricType+"/"+tt.metricName,
+				nil)
 
-			req := httptest.NewRequest(http.MethodGet, "/value/"+tt.urlParams["type"]+"/"+tt.urlParams["name"], nil)
-
+			// Setup chi route context with URL params
 			rctx := chi.NewRouteContext()
-			for k, v := range tt.urlParams {
-				rctx.URLParams.Add(k, v)
-			}
+			rctx.URLParams.Add("type", tt.metricType)
+			rctx.URLParams.Add("name", tt.metricName)
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
-			rr := httptest.NewRecorder()
-			handler.ServeHTTP(rr, req)
+			w := httptest.NewRecorder()
 
-			assert.Equal(t, tt.expectedCode, rr.Code)
-			assert.Equal(t, tt.expectedBody, rr.Body.String())
+			handler := NewMetricGetPathHandler(tt.validateFunc, mockSvc)
+			handler.ServeHTTP(w, req)
+
+			resp := w.Result()
+			defer resp.Body.Close()
+			body := w.Body.String()
+
+			assert.Equal(t, tt.wantCode, resp.StatusCode)
+			assert.Equal(t, tt.wantBody, body)
 		})
 	}
 }

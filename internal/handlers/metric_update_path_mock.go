@@ -12,39 +12,40 @@ import (
 	types "github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
-// MockMetricUpdater is a mock of MetricUpdater interface.
-type MockMetricUpdater struct {
+// MockMetricUpdaterPath is a mock of MetricUpdaterPath interface.
+type MockMetricUpdaterPath struct {
 	ctrl     *gomock.Controller
-	recorder *MockMetricUpdaterMockRecorder
+	recorder *MockMetricUpdaterPathMockRecorder
 }
 
-// MockMetricUpdaterMockRecorder is the mock recorder for MockMetricUpdater.
-type MockMetricUpdaterMockRecorder struct {
-	mock *MockMetricUpdater
+// MockMetricUpdaterPathMockRecorder is the mock recorder for MockMetricUpdaterPath.
+type MockMetricUpdaterPathMockRecorder struct {
+	mock *MockMetricUpdaterPath
 }
 
-// NewMockMetricUpdater creates a new mock instance.
-func NewMockMetricUpdater(ctrl *gomock.Controller) *MockMetricUpdater {
-	mock := &MockMetricUpdater{ctrl: ctrl}
-	mock.recorder = &MockMetricUpdaterMockRecorder{mock}
+// NewMockMetricUpdaterPath creates a new mock instance.
+func NewMockMetricUpdaterPath(ctrl *gomock.Controller) *MockMetricUpdaterPath {
+	mock := &MockMetricUpdaterPath{ctrl: ctrl}
+	mock.recorder = &MockMetricUpdaterPathMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockMetricUpdater) EXPECT() *MockMetricUpdaterMockRecorder {
+func (m *MockMetricUpdaterPath) EXPECT() *MockMetricUpdaterPathMockRecorder {
 	return m.recorder
 }
 
 // Update mocks base method.
-func (m *MockMetricUpdater) Update(ctx context.Context, metrics []types.Metrics) error {
+func (m *MockMetricUpdaterPath) Update(ctx context.Context, metrics []*types.Metrics) ([]*types.Metrics, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, metrics)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]*types.Metrics)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockMetricUpdaterMockRecorder) Update(ctx, metrics interface{}) *gomock.Call {
+func (mr *MockMetricUpdaterPathMockRecorder) Update(ctx, metrics interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockMetricUpdater)(nil).Update), ctx, metrics)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockMetricUpdaterPath)(nil).Update), ctx, metrics)
 }
