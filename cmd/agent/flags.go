@@ -19,14 +19,17 @@ func parseFlags() (*configs.AgentConfig, error) {
 		withLogLevel(fs),
 	}
 
-	fs.Parse(os.Args[1:])
+	err := fs.Parse(os.Args[1:])
+	if err != nil {
+		return nil, err
+	}
 
 	return configs.NewAgentConfig(options...), nil
 }
 
 func withServerAddress(fs *flag.FlagSet) configs.AgentOption {
 	var addrFlag string
-	fs.StringVar(&addrFlag, "a", ":8080", "server address")
+	fs.StringVar(&addrFlag, "a", "localhost:8080", "server address")
 
 	return func(cfg *configs.AgentConfig) {
 		if env := os.Getenv("ADDRESS"); env != "" {
@@ -39,7 +42,7 @@ func withServerAddress(fs *flag.FlagSet) configs.AgentOption {
 
 func withPollInterval(fs *flag.FlagSet) configs.AgentOption {
 	var pollFlag int
-	fs.IntVar(&pollFlag, "poll", 5, "polling interval in seconds")
+	fs.IntVar(&pollFlag, "p", 2, "polling interval in seconds")
 
 	return func(cfg *configs.AgentConfig) {
 		if env := os.Getenv("POLL_INTERVAL"); env != "" {
@@ -54,7 +57,7 @@ func withPollInterval(fs *flag.FlagSet) configs.AgentOption {
 
 func withReportInterval(fs *flag.FlagSet) configs.AgentOption {
 	var reportFlag int
-	fs.IntVar(&reportFlag, "report", 10, "reporting interval in seconds")
+	fs.IntVar(&reportFlag, "r", 10, "reporting interval in seconds")
 
 	return func(cfg *configs.AgentConfig) {
 		if env := os.Getenv("REPORT_INTERVAL"); env != "" {

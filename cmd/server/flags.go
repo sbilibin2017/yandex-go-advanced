@@ -15,14 +15,17 @@ func parseFlags() (*configs.ServerConfig, error) {
 		withLogLevel(fs),
 	}
 
-	fs.Parse(os.Args[1:])
+	err := fs.Parse(os.Args[1:])
+	if err != nil {
+		return nil, err
+	}
 
 	return configs.NewServerConfig(options...), nil
 }
 
 func withAddr(fs *flag.FlagSet) configs.ServerOption {
 	var addrFlag string
-	fs.StringVar(&addrFlag, "a", ":8080", "address and port to run server")
+	fs.StringVar(&addrFlag, "a", "localhost:8080", "address and port to run server")
 
 	return func(cfg *configs.ServerConfig) {
 		if env := os.Getenv("ADDRESS"); env != "" {
