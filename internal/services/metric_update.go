@@ -32,7 +32,7 @@ func (svc *MetricUpdateService) Update(
 ) error {
 	for _, m := range metrics {
 		metric := &m
-		switch m.MType {
+		switch m.Type {
 		case types.Counter:
 			if err := updateCounterMetric(ctx, svc.getter, metric); err != nil {
 				return err
@@ -53,7 +53,7 @@ func updateCounterMetric(
 	getter MetricUpdateGetter,
 	metric *types.Metrics,
 ) error {
-	existing, err := getter.Get(ctx, types.MetricID{ID: metric.ID, MType: metric.MType})
+	existing, err := getter.Get(ctx, types.MetricID{ID: metric.ID, Type: metric.Type})
 	if err != nil {
 		return err
 	}

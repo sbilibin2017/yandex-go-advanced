@@ -24,10 +24,10 @@ func TestMetricMemoryGetRepository_Get(t *testing.T) {
 	// Подготовка данных
 	existingMetric := types.Metrics{
 		ID:    "metric1",
-		MType: types.Counter,
+		Type:  types.Counter,
 		Delta: ptrInt64(42),
 	}
-	key := types.MetricID{ID: existingMetric.ID, MType: existingMetric.MType}
+	key := types.MetricID{ID: existingMetric.ID, Type: existingMetric.Type}
 
 	mu.Lock()
 	metrics[key] = existingMetric
@@ -46,7 +46,7 @@ func TestMetricMemoryGetRepository_Get(t *testing.T) {
 		},
 		{
 			name:    "metric not found",
-			id:      types.MetricID{ID: "not_exist", MType: types.Gauge},
+			id:      types.MetricID{ID: "not_exist", Type: types.Gauge},
 			want:    nil,
 			wantErr: false,
 		},

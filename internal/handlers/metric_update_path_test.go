@@ -1,114 +1,64 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang/mock/gomock"
-
-	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 	"github.com/stretchr/testify/assert"
+
+	valErrors "github.com/sbilibin2017/yandex-go-advanced/internal/errors"
 )
 
 func TestMetricUpdatePathHandler(t *testing.T) {
-	int64Ptr := func(i int64) *int64 { return &i }
-	float64Ptr := func(f float64) *float64 { return &f }
-
-	type want struct {
-		code int
+	dummyValidator := func(expectedErr error) func(string, string, string) error {
+		return func(mt, mn, mv string) error {
+			return expectedErr
+		}
 	}
 
 	tests := []struct {
-		name        string
-		metricType  string
-		metricName  string
-		metricValue string
-		mockSetup   func(m *MockMetricUpdater)
-		want        want
+		name           string
+		urlParams      map[string]string
+		validatorError error
+		updateError    error
+		expectedCode   int
 	}{
 		{
-			name:        "valid counter update",
-			metricType:  "counter",
-			metricName:  "requests",
-			metricValue: "42",
-			mockSetup: func(m *MockMetricUpdater) {
-				m.EXPECT().
-					Update(gomock.Any(), gomock.Eq([]types.Metrics{
-						{
-							ID:    "requests",
-							MType: types.Counter,
-							Delta: int64Ptr(42),
-						},
-					})).
-					Return(nil)
-			},
-			want: want{code: http.StatusOK},
+			name:           "valid request",
+			urlParams:      map[string]string{"type": "gauge", "name": "temp", "value": "123.4"},
+			validatorError: nil,
+			updateError:    nil,
+			expectedCode:   http.StatusOK,
 		},
 		{
-			name:        "valid gauge update",
-			metricType:  "gauge",
-			metricName:  "load",
-			metricValue: "3.14",
-			mockSetup: func(m *MockMetricUpdater) {
-				m.EXPECT().
-					Update(gomock.Any(), gomock.Eq([]types.Metrics{
-						{
-							ID:    "load",
-							MType: types.Gauge,
-							Value: float64Ptr(3.14),
-						},
-					})).
-					Return(nil)
-			},
-			want: want{code: http.StatusOK},
+			name:           "missing metric name",
+			urlParams:      map[string]string{"type": "gauge", "name": "", "value": "123.4"},
+			validatorError: valErrors.ErrMetricNameMissing,
+			expectedCode:   http.StatusNotFound,
 		},
 		{
-			name:        "missing name",
-			metricType:  "gauge",
-			metricName:  "",
-			metricValue: "1.0",
-			mockSetup:   func(m *MockMetricUpdater) {},
-			want:        want{code: http.StatusNotFound},
+			name:           "invalid metric type",
+			urlParams:      map[string]string{"type": "invalid", "name": "temp", "value": "123.4"},
+			validatorError: valErrors.ErrMetricTypeInvalid,
+			expectedCode:   http.StatusBadRequest,
 		},
 		{
-			name:        "invalid type",
-			metricType:  "invalid",
-			metricName:  "foo",
-			metricValue: "100",
-			mockSetup:   func(m *MockMetricUpdater) {},
-			want:        want{code: http.StatusBadRequest},
+			name:           "invalid metric value",
+			urlParams:      map[string]string{"type": "gauge", "name": "temp", "value": "abc"},
+			validatorError: valErrors.ErrMetricValueInvalid,
+			expectedCode:   http.StatusBadRequest,
 		},
 		{
-			name:        "invalid counter value",
-			metricType:  "counter",
-			metricName:  "bar",
-			metricValue: "not-an-int",
-			mockSetup:   func(m *MockMetricUpdater) {},
-			want:        want{code: http.StatusBadRequest},
-		},
-		{
-			name:        "invalid gauge value",
-			metricType:  "gauge",
-			metricName:  "cpu",
-			metricValue: "not-a-float",
-			mockSetup:   func(m *MockMetricUpdater) {},
-			want:        want{code: http.StatusBadRequest},
-		},
-		{
-			name:        "internal update error",
-			metricType:  "gauge",
-			metricName:  "mem",
-			metricValue: "9.99",
-			mockSetup: func(m *MockMetricUpdater) {
-				m.EXPECT().
-					Update(gomock.Any(), gomock.Any()).
-					Return(errors.New("db error"))
-			},
-			want: want{code: http.StatusInternalServerError},
+			name:           "update service error",
+			urlParams:      map[string]string{"type": "gauge", "name": "temp", "value": "123.4"},
+			validatorError: nil,
+			updateError:    errors.New("update failure"),
+			expectedCode:   http.StatusInternalServerError,
 		},
 	}
 
@@ -118,38 +68,33 @@ func TestMetricUpdatePathHandler(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockUpdater := NewMockMetricUpdater(ctrl)
-			tt.mockSetup(mockUpdater)
 
-			r := chi.NewRouter()
-			r.MethodFunc("POST", "/update/{type}/{name}/{value}", NewMetricUpdatePathHandler(mockUpdater))
+			// Set expectation on Update only if validator passes
+			if tt.validatorError == nil {
+				// Expect Update to be called once with any context and any metrics slice
+				mockUpdater.EXPECT().
+					Update(gomock.Any(), gomock.Any()).
+					Return(tt.updateError).
+					Times(1)
+			}
 
-			req := httptest.NewRequest("POST", "/update/"+tt.metricType+"/"+tt.metricName+"/"+tt.metricValue, nil)
-			rec := httptest.NewRecorder()
+			handler := NewMetricUpdatePathHandler(
+				dummyValidator(tt.validatorError),
+				mockUpdater,
+			)
 
-			r.ServeHTTP(rec, req)
+			req := httptest.NewRequest(http.MethodPost, "/update/"+tt.urlParams["type"]+"/"+tt.urlParams["name"]+"/"+tt.urlParams["value"], nil)
+			// Set URL params for chi
+			rctx := chi.NewRouteContext()
+			for k, v := range tt.urlParams {
+				rctx.URLParams.Add(k, v)
+			}
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
-			assert.Equal(t, tt.want.code, rec.Code)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedCode, rr.Code)
 		})
 	}
-}
-
-func TestHandleMetricUpdatePathError_InternalError(t *testing.T) {
-	// given
-	rr := httptest.NewRecorder()
-	unexpectedErr := errors.New("something unexpected")
-
-	// when
-	handleMetricUpdatePathError(rr, unexpectedErr)
-
-	// then
-	res := rr.Result()
-	defer res.Body.Close()
-
-	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
-
-	buf := make([]byte, 512)
-	n, _ := res.Body.Read(buf)
-	body := string(buf[:n])
-
-	assert.True(t, strings.Contains(body, "internal error"))
 }

@@ -19,6 +19,6 @@ func (repo *MetricMemorySaveRepository) Save(
 	mu.Lock()
 	defer mu.Unlock()
 
-	metrics[types.MetricID{ID: m.ID, MType: m.MType}] = m
+	metrics[types.MetricID{ID: m.ID, Type: m.Type}] = m
 	return nil
 }

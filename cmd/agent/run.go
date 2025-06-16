@@ -2,27 +2,21 @@ package main
 
 import (
 	"context"
-	"os/signal"
-	"syscall"
 
-	"github.com/sbilibin2017/yandex-go-advanced/internal/workers"
+	"github.com/sbilibin2017/yandex-go-advanced/internal/apps"
+	"github.com/sbilibin2017/yandex-go-advanced/internal/configs"
+	"github.com/sbilibin2017/yandex-go-advanced/internal/runners"
 )
 
-func run() error {
-	ctx, stop := signal.NotifyContext(
-		context.Background(),
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	)
+func run(ctx context.Context, config *configs.AgentConfig) error {
+	ctx, stop := runners.NewRunContext(ctx)
 	defer stop()
 
-	return workers.StartMetricAgentWorker(
-		ctx,
-		addressFlag,
-		pollIntervalFlag,
-		reportIntervalFlag,
-		numWorkersFlag,
-	)
+	worker, err := apps.NewAgentApp(config)
+	if err != nil {
+		return err
+	}
+
+	return runners.RunWorker(ctx, worker)
 
 }

@@ -44,8 +44,8 @@ func TestMetricListService_List_Table(t *testing.T) {
 			},
 			want: want{
 				metrics: []types.Metrics{
-					{ID: "metric1", MType: types.Counter, Delta: func(i int64) *int64 { return &i }(10)},
-					{ID: "metric2", MType: types.Gauge, Value: func(f float64) *float64 { return &f }(3.14)},
+					{ID: "metric1", Type: types.Counter, Delta: func(i int64) *int64 { return &i }(10)},
+					{ID: "metric2", Type: types.Gauge, Value: func(f float64) *float64 { return &f }(3.14)},
 				},
 				err: false,
 			},
@@ -53,8 +53,8 @@ func TestMetricListService_List_Table(t *testing.T) {
 				f.lister.EXPECT().
 					List(args.ctx).
 					Return([]types.Metrics{
-						{ID: "metric1", MType: types.Counter, Delta: func(i int64) *int64 { return &i }(10)},
-						{ID: "metric2", MType: types.Gauge, Value: func(f float64) *float64 { return &f }(3.14)},
+						{ID: "metric1", Type: types.Counter, Delta: func(i int64) *int64 { return &i }(10)},
+						{ID: "metric2", Type: types.Gauge, Value: func(f float64) *float64 { return &f }(3.14)},
 					}, nil)
 			},
 		},
