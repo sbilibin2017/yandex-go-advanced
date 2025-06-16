@@ -78,16 +78,22 @@
 │   ├── facades             // Фасады для упрощения взаимодействия с метриками
 │   │   ├── metric.go          // Фасады для работы с метриками
 │   │   └── metric_test.go     // Тесты фасадов метрик
-│   ├── handlers            // HTTP-обработчики запросов (с моками и тестами)
-│   │   ├── metric_get_path.go         // HTTP-обработчик получения метрики по пути
-│   │   ├── metric_get_path_mock.go    // Мок для обработчика metric_get_path.go
-│   │   ├── metric_get_path_test.go    // Тесты для обработчика metric_get_path.go
-│   │   ├── metric_list_html.go        // HTTP-обработчик страницы списка метрик в HTML
-│   │   ├── metric_list_html_mock.go   // Мок для обработчика metric_list_html.go
-│   │   ├── metric_list_html_test.go   // Тесты для HTML-обработчика списка метрик
-│   │   ├── metric_update_path.go      // HTTP-обработчик обновления метрик по пути
-│   │   ├── metric_update_path_mock.go // Мок для обработчика metric_update_path.go
-│   │   └── metric_update_path_test.go // Тесты для обработчика обновления метрик
+│   ├── handlers
+│   │   ├── metric_get_body.go           // Обработчики получения метрик из тела запроса (POST/PUT)
+│   │   ├── metric_get_body_mock.go      // Моки для тестирования обработчиков metric_get_body.go
+│   │   ├── metric_get_body_test.go      // Тесты для обработчиков metric_get_body.go
+│   │   ├── metric_get_path.go           // Обработчики получения метрик из URL-пути (GET)
+│   │   ├── metric_get_path_mock.go      // Моки для тестирования обработчиков metric_get_path.go
+│   │   ├── metric_get_path_test.go      // Тесты для обработчиков metric_get_path.go
+│   │   ├── metric_list_html.go          // Обработчик отображения списка метрик в HTML формате
+│   │   ├── metric_list_html_mock.go     // Моки для тестирования metric_list_html.go
+│   │   ├── metric_list_html_test.go     // Тесты для metric_list_html.go
+│   │   ├── metric_update_body.go        // Обработчики обновления метрик через тело запроса
+│   │   ├── metric_update_body_mock.go   // Моки для тестирования metric_update_body.go
+│   │   ├── metric_update_body_test.go   // Тесты для metric_update_body.go
+│   │   ├── metric_update_path.go        // Обработчики обновления метрик через URL-путь
+│   │   ├── metric_update_path_mock.go   // Моки для тестирования metric_update_path.go
+│   │   └── metric_update_path_test.go   // Тесты для metric_update_path.go
 │   ├── repositories       // Репозитории для хранения и получения данных (метрик)
 │   │   ├── metric_memory_get.go       // Репозиторий получения метрик из памяти
 │   │   ├── metric_memory_get_test.go  // Тесты для репозитория получения метрик
@@ -161,3 +167,4 @@
 | iter4    | Добавлены флаги для конфигурирования сервера, агента   | 
 | iter5    | Добавлены переменные окружения для конфигурирования сервера, агента | 
 | iter6    | Добавлен логер и мидлвар для логирования запросов и ответов сервера | 
+| iter7    | Добавлены обработчики сервера для получения и обновления метрик (в теле запроса)  метрик | 

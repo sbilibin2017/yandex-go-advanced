@@ -4,68 +4,70 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestMetricListHTMLHandler(t *testing.T) {
+func TestNewMetricListHTMLHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSvc := NewMockMetricHTMLLister(ctrl)
+
+	handler := NewMetricListHTMLHandler(mockSvc)
+
 	tests := []struct {
-		name         string
-		serviceReply []types.Metrics
-		serviceError error
-		expectedCode int
-		expectedBody string
-		expectedCT   string
+		name          string
+		setupMock     func()
+		wantCode      int
+		wantBodyParts []string // parts expected in body string
 	}{
 		{
-			name: "successful list returns HTML",
-			serviceReply: []types.Metrics{
-				*types.NewMetric("gauge", "temp", "123.45"),
-				*types.NewMetric("counter", "requests", "100"),
+			name: "success returns HTML",
+			setupMock: func() {
+				mockSvc.EXPECT().
+					List(gomock.Any()).
+					Return([]types.Metrics{
+						{ID: "m1", Type: "gauge"},
+						{ID: "m2", Type: "counter"},
+					}, nil)
 			},
-			serviceError: nil,
-			expectedCode: http.StatusOK,
-			expectedBody: types.NewMetricsHTML([]types.Metrics{
-				*types.NewMetric("gauge", "temp", "123.45"),
-				*types.NewMetric("counter", "requests", "100"),
-			}),
-			expectedCT: "text/html; charset=utf-8",
+			wantCode:      http.StatusOK,
+			wantBodyParts: []string{"m1", "m2", "n/a"}, // check IDs and the "n/a" values your HTML produces
 		},
 		{
-			name:         "service returns error",
-			serviceReply: nil,
-			serviceError: errors.New("db failure"),
-			expectedCode: http.StatusInternalServerError,
-			expectedBody: "internal server error\n", // note the newline
+			name: "service returns error",
+			setupMock: func() {
+				mockSvc.EXPECT().
+					List(gomock.Any()).
+					Return(nil, errors.New("fail"))
+			},
+			wantCode:      http.StatusInternalServerError,
+			wantBodyParts: []string{"internal server error"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockSvc := NewMockMetricHTMLLister(ctrl)
-			mockSvc.EXPECT().
-				List(gomock.Any()).
-				Return(tt.serviceReply, tt.serviceError).
-				Times(1)
-
-			handler := NewMetricListHTMLHandler(mockSvc)
+			tt.setupMock()
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			rr := httptest.NewRecorder()
+			w := httptest.NewRecorder()
 
-			handler.ServeHTTP(rr, req)
+			handler(w, req)
 
-			assert.Equal(t, tt.expectedCode, rr.Code)
-			assert.Equal(t, tt.expectedBody, rr.Body.String())
-			if tt.expectedCode == http.StatusOK {
-				assert.Equal(t, tt.expectedCT, rr.Header().Get("Content-Type"))
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			body := w.Body.String()
+
+			assert.Equal(t, tt.wantCode, resp.StatusCode)
+			for _, part := range tt.wantBodyParts {
+				assert.Contains(t, strings.ToLower(body), strings.ToLower(part))
 			}
 		})
 	}

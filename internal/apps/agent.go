@@ -10,14 +10,13 @@ import (
 
 func NewAgentApp(
 	config *configs.AgentConfig,
-) (func(ctx context.Context) error, error) {
+) (func(ctx context.Context), error) {
 	metricUpdateFacade := facades.NewMetricUpdateFacade(config.ServerAddress)
 
 	worker := workers.NewMetricAgentWorker(
 		metricUpdateFacade,
 		config.PollInterval,
 		config.ReportInterval,
-		config.NumWorkers,
 	)
 
 	return worker, nil

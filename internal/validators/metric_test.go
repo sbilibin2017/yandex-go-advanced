@@ -53,3 +53,108 @@ func TestValidateMetricAttributes(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateMetricID(t *testing.T) {
+	tests := []struct {
+		name      string
+		metricID  types.MetricID
+		wantError error
+	}{
+		{
+			name:      "valid counter",
+			metricID:  types.MetricID{ID: "metric1", Type: types.Counter},
+			wantError: nil,
+		},
+		{
+			name:      "valid gauge",
+			metricID:  types.MetricID{ID: "metric2", Type: types.Gauge},
+			wantError: nil,
+		},
+		{
+			name:      "empty ID",
+			metricID:  types.MetricID{ID: "", Type: types.Counter},
+			wantError: errors.ErrMetricIDInvalid,
+		},
+		{
+			name:      "invalid type",
+			metricID:  types.MetricID{ID: "metric3", Type: "invalid"},
+			wantError: errors.ErrMetricTypeInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validators.ValidateMetricID(tt.metricID)
+			assert.ErrorIs(t, err, tt.wantError)
+		})
+	}
+}
+
+func TestValidateMetric(t *testing.T) {
+	delta := int64(10)
+	value := float64(3.14)
+
+	tests := []struct {
+		name      string
+		metric    types.Metrics
+		wantError error
+	}{
+		{
+			name: "valid counter metric",
+			metric: types.Metrics{
+				ID:    "metric1",
+				Type:  types.Counter,
+				Delta: &delta,
+			},
+			wantError: nil,
+		},
+		{
+			name: "valid gauge metric",
+			metric: types.Metrics{
+				ID:    "metric2",
+				Type:  types.Gauge,
+				Value: &value,
+			},
+			wantError: nil,
+		},
+		{
+			name: "counter metric with nil delta",
+			metric: types.Metrics{
+				ID:   "metric3",
+				Type: types.Counter,
+			},
+			wantError: errors.ErrMetricDeltaInvalid,
+		},
+		{
+			name: "gauge metric with nil value",
+			metric: types.Metrics{
+				ID:   "metric4",
+				Type: types.Gauge,
+			},
+			wantError: errors.ErrMetricValueInvalid,
+		},
+		{
+			name: "invalid metric ID",
+			metric: types.Metrics{
+				ID:   "",
+				Type: types.Counter,
+			},
+			wantError: errors.ErrMetricIDInvalid,
+		},
+		{
+			name: "invalid metric type",
+			metric: types.Metrics{
+				ID:   "metric5",
+				Type: "invalid",
+			},
+			wantError: errors.ErrMetricTypeInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validators.ValidateMetric(tt.metric)
+			assert.ErrorIs(t, err, tt.wantError)
+		})
+	}
+}

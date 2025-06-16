@@ -1,126 +1,162 @@
-package facades
+package facades_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/sbilibin2017/yandex-go-advanced/internal/facades"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMetricUpdateFacade_AddsHTTPPrefixIfMissing(t *testing.T) {
-	// Create a test HTTP server to check requests
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The request URL's Host should contain "localhost" (testServer URL)
-		assert.True(t, strings.HasPrefix(r.URL.String(), "/update/"))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer testServer.Close()
-
-	// Extract host without protocol, e.g. "localhost:12345"
-	addrWithoutProtocol := testServer.Listener.Addr().String()
-
-	// Create facade with serverAddress missing protocol prefix
-	facade := NewMetricUpdateFacade(addrWithoutProtocol)
-
-	value := 123.45
-	metrics := []types.Metrics{
-		{ID: "cpu", Type: types.Gauge, Value: &value},
+func TestMetricUpdateFacade_Update(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverAddress  string
+		handlerFunc    http.HandlerFunc
+		metrics        []*types.Metrics
+		wantErr        bool
+		expectedErrMsg string
+	}{
+		{
+			name: "success",
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				var m types.Metrics
+				if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+					http.Error(w, "bad request", http.StatusBadRequest)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+			},
+			metrics: []*types.Metrics{
+				{
+					ID:   "metric1",
+					Type: types.Gauge,
+					Value: func() *float64 {
+						v := 10.5
+						return &v
+					}(),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "bad request response",
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "bad request", http.StatusBadRequest)
+			},
+			metrics: []*types.Metrics{
+				{
+					ID:   "metric2",
+					Type: types.Counter,
+					Delta: func() *int64 {
+						v := int64(5)
+						return &v
+					}(),
+				},
+			},
+			wantErr:        true,
+			expectedErrMsg: "metrics update request failed: 400 Bad Request",
+		},
+		{
+			name: "invalid json request",
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "invalid json", http.StatusBadRequest)
+			},
+			metrics: []*types.Metrics{
+				{
+					ID:   "metric3",
+					Type: types.Gauge,
+					Value: func() *float64 {
+						v := 2.5
+						return &v
+					}(),
+				},
+			},
+			wantErr:        true,
+			expectedErrMsg: "metrics update request failed: 400 Bad Request",
+		},
+		{
+			name: "network error",
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			},
+			metrics: []*types.Metrics{
+				{
+					ID:   "metric4",
+					Type: types.Counter,
+					Delta: func() *int64 {
+						v := int64(1)
+						return &v
+					}(),
+				},
+			},
+			wantErr:        true,
+			expectedErrMsg: "failed to send metrics update request:",
+		},
+		{
+			name: "missing scheme in serverAddress adds http",
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				var m types.Metrics
+				if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+					http.Error(w, "bad request", http.StatusBadRequest)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+			},
+			metrics: []*types.Metrics{
+				{
+					ID:   "metric5",
+					Type: types.Counter,
+					Delta: func() *int64 {
+						v := int64(100)
+						return &v
+					}(),
+				},
+			},
+			wantErr: false,
+		},
 	}
 
-	err := facade.Update(context.Background(), metrics)
-	assert.NoError(t, err)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ts *httptest.Server
 
-func TestMetricUpdateFacade_Update_Success(t *testing.T) {
-	// Create a test HTTP server to mock real server responses
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check method and path format
-		assert.Equal(t, http.MethodPost, r.Method)
+			if tt.name == "network error" {
+				ts = httptest.NewServer(tt.handlerFunc)
+				ts.Close()
+			} else {
+				r := chi.NewRouter()
+				r.Post("/update/", tt.handlerFunc)
+				ts = httptest.NewServer(r)
+			}
 
-		// Example: /update/gauge/temperature/42.5
-		assert.Contains(t, r.URL.Path, "/update/")
+			serverAddr := tt.serverAddress
+			if serverAddr == "" {
+				if tt.name == "missing scheme in serverAddress adds http" {
+					serverAddr = strings.TrimPrefix(ts.URL, "http://")
+				} else {
+					serverAddr = ts.URL
+				}
+			}
 
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer testServer.Close()
+			facade := facades.NewMetricUpdateFacade(serverAddr)
 
-	facade := NewMetricUpdateFacade(testServer.URL)
+			err := facade.Update(context.Background(), tt.metrics)
 
-	gaugeValue := 42.5
-	counterValue := int64(7)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrMsg)
+			} else {
+				assert.NoError(t, err)
+			}
 
-	metrics := []types.Metrics{
-		{ID: "temperature", Type: types.Gauge, Value: &gaugeValue},
-		{ID: "requests", Type: types.Counter, Delta: &counterValue},
+			ts.Close()
+		})
 	}
-
-	err := facade.Update(context.Background(), metrics)
-	assert.NoError(t, err)
-}
-
-func TestMetricUpdateFacade_Update_FailOnInvalidMetric(t *testing.T) {
-	facade := NewMetricUpdateFacade("http://example.com")
-
-	metrics := []types.Metrics{
-		{ID: "invalid", Type: "unknown"},
-	}
-
-	err := facade.Update(context.Background(), metrics)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown metric type")
-}
-
-func TestMetricUpdateFacade_Update_FailOnNilValue(t *testing.T) {
-	facade := NewMetricUpdateFacade("http://example.com")
-
-	metrics := []types.Metrics{
-		{ID: "missingvalue", Type: types.Gauge, Value: nil},
-	}
-
-	err := facade.Update(context.Background(), metrics)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "value is nil")
-
-	metrics = []types.Metrics{
-		{ID: "missingdelta", Type: types.Counter, Delta: nil},
-	}
-
-	err = facade.Update(context.Background(), metrics)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "delta value is nil")
-}
-
-func TestMetricUpdateFacade_Update_ServerReturnsError(t *testing.T) {
-	// Setup a test server that returns 500 error
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-	}))
-	defer testServer.Close()
-
-	facade := NewMetricUpdateFacade(testServer.URL)
-
-	value := 10.0
-	metrics := []types.Metrics{
-		{ID: "temp", Type: types.Gauge, Value: &value},
-	}
-
-	err := facade.Update(context.Background(), metrics)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to send metric")
-}
-
-func TestMetricUpdateFacade_Update_ServerNotReachable(t *testing.T) {
-	facade := NewMetricUpdateFacade("http://localhost:9999") // assuming port not in use
-
-	value := 10.0
-	metrics := []types.Metrics{
-		{ID: "temp", Type: types.Gauge, Value: &value},
-	}
-
-	err := facade.Update(context.Background(), metrics)
-	assert.Error(t, err)
 }

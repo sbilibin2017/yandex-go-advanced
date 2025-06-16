@@ -27,7 +27,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 		getter *MockMetricUpdateGetter
 	}
 	type args struct {
-		metrics []types.Metrics
+		metrics []*types.Metrics
 	}
 	type want struct {
 		err bool
@@ -47,7 +47,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 				getter: NewMockMetricUpdateGetter(ctrl),
 			},
 			args: args{
-				metrics: []types.Metrics{
+				metrics: []*types.Metrics{
 					{
 						ID:    "metric1",
 						Type:  types.Counter,
@@ -69,7 +69,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 					Save(gomock.Any(), types.Metrics{
 						ID:    "metric1",
 						Type:  types.Counter,
-						Delta: ptrInt64(15),
+						Delta: ptrInt64(15), // 10 + 5
 					}).
 					Return(nil)
 			},
@@ -81,7 +81,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 				getter: NewMockMetricUpdateGetter(ctrl),
 			},
 			args: args{
-				metrics: []types.Metrics{
+				metrics: []*types.Metrics{
 					{
 						ID:    "metric2",
 						Type:  types.Gauge,
@@ -92,7 +92,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 			want: want{err: false},
 			setup: func(f fields, args args) {
 				f.saver.EXPECT().
-					Save(gomock.Any(), args.metrics[0]).
+					Save(gomock.Any(), *args.metrics[0]).
 					Return(nil)
 			},
 		},
@@ -103,7 +103,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 				getter: NewMockMetricUpdateGetter(ctrl),
 			},
 			args: args{
-				metrics: []types.Metrics{
+				metrics: []*types.Metrics{
 					{
 						ID:    "metric3",
 						Type:  types.Counter,
@@ -125,7 +125,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 				getter: NewMockMetricUpdateGetter(ctrl),
 			},
 			args: args{
-				metrics: []types.Metrics{
+				metrics: []*types.Metrics{
 					{
 						ID:    "metric4",
 						Type:  types.Gauge,
@@ -136,7 +136,7 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 			want: want{err: true},
 			setup: func(f fields, args args) {
 				f.saver.EXPECT().
-					Save(gomock.Any(), args.metrics[0]).
+					Save(gomock.Any(), *args.metrics[0]).
 					Return(errors.New("save error"))
 			},
 		},
@@ -149,11 +149,13 @@ func TestMetricUpdateService_Update_Table(t *testing.T) {
 			}
 			svc := NewMetricUpdateService(tt.fields.saver, tt.fields.getter)
 
-			err := svc.Update(context.Background(), tt.args.metrics)
+			res, err := svc.Update(context.Background(), tt.args.metrics)
 			if tt.want.err {
 				assert.Error(t, err)
+				assert.Nil(t, res)
 			} else {
 				assert.NoError(t, err)
+				assert.NotNil(t, res)
 			}
 		})
 	}

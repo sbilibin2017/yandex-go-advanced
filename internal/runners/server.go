@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -16,6 +18,14 @@ func RunServer(
 	ctx context.Context,
 	srv Server,
 ) error {
+	ctx, cancel := signal.NotifyContext(
+		ctx,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	)
+	defer cancel()
+
 	errChan := make(chan error, 1)
 	defer close(errChan)
 
