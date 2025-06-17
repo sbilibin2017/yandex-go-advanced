@@ -14,6 +14,7 @@ import (
 	"github.com/sbilibin2017/yandex-go-advanced/internal/routers"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/services"
 	"github.com/sbilibin2017/yandex-go-advanced/internal/validators"
+	"github.com/sbilibin2017/yandex-go-advanced/internal/workers"
 )
 
 // ServerApp represents the HTTP server application.
@@ -118,4 +119,73 @@ func (app *ServerApp) Start(ctx context.Context) error {
 //   - An error if shutdown fails or times out.
 func (app *ServerApp) Stop(ctx context.Context) error {
 	return app.server.Shutdown(ctx)
+}
+
+// ServerWorkerApp represents a background worker application that runs a metrics
+// server worker loop.
+//
+// It encapsulates the worker function and implements the Runnable interface.
+type ServerWorkerApp struct {
+	worker func(ctx context.Context)
+}
+
+// NewServerWorkerApp creates and initializes a new ServerWorkerApp based on the
+// provided server configuration.
+//
+// This function sets up metric repositories for memory and file storage, then
+// creates a worker function that periodically saves and restores metrics based
+// on the configuration.
+//
+// Parameters:
+//   - config: Pointer to ServerConfig containing file storage path, store interval, and restore flag.
+//
+// Returns:
+//   - A pointer to a ServerWorkerApp instance.
+//   - An error if initialization fails (currently always nil).
+func NewServerWorkerApp(config *configs.ServerConfig) (*ServerWorkerApp, error) {
+	// Initialize repositories
+	metricMemorySaveRepository := repositories.NewMetricMemorySaveRepository()
+	metricMemoryListRepository := repositories.NewMetricMemoryListRepository()
+
+	metricFileSaveRepository := repositories.NewMetricFileSaveRepository(config.FileStoragePath)
+	metricFileListRepository := repositories.NewMetricFileListRepository(config.FileStoragePath)
+
+	worker := workers.NewMetricServerWorker(
+		metricMemorySaveRepository,
+		metricMemoryListRepository,
+		metricFileSaveRepository,
+		metricFileListRepository,
+		config.StoreInterval,
+		config.Restore,
+	)
+	return &ServerWorkerApp{
+		worker: worker,
+	}, nil
+}
+
+// Start runs the worker function with the provided context.
+//
+// This method satisfies the Runnable interface.
+//
+// Parameters:
+//   - ctx: Context for managing cancellation and shutdown.
+//
+// Returns:
+//   - Always returns nil.
+func (app *ServerWorkerApp) Start(ctx context.Context) error {
+	app.worker(ctx)
+	return nil
+}
+
+// Stop terminates the worker application.
+//
+// This method satisfies the Runnable interface.
+//
+// Parameters:
+//   - ctx: Context for managing cancellation and timeout.
+//
+// Returns:
+//   - Always returns nil.
+func (app *ServerWorkerApp) Stop(ctx context.Context) error {
+	return nil
 }

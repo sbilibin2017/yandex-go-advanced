@@ -13,6 +13,9 @@ func run(ctx context.Context) error {
 	config := configs.NewServerConfig(
 		configs.WithServerAddress(addr),
 		configs.WithServerLogLevel(logLevel),
+		configs.WithStoreInterval(storeInterval),
+		configs.WithFileStoragePath(filePath),
+		configs.WithRestore(restore),
 	)
 
 	err := logger.Initialize(config.LogLevel)
@@ -28,9 +31,21 @@ func run(ctx context.Context) error {
 		return err
 	}
 
+	worker, err := apps.NewServerWorkerApp(config)
+	if err != nil {
+		logger.Log.Errorf("Failed to create server worker app: %v", err)
+		return err
+	}
+
 	err = runners.Run(ctx, app)
 	if err != nil {
 		logger.Log.Errorf("Error running the app: %v", err)
+		return err
+	}
+
+	err = runners.Run(ctx, worker)
+	if err != nil {
+		logger.Log.Errorf("Error running the worker: %v", err)
 		return err
 	}
 
