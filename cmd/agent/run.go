@@ -9,19 +9,25 @@ import (
 	"github.com/sbilibin2017/yandex-go-advanced/internal/runners"
 )
 
-func run(ctx context.Context, config *configs.AgentConfig) error {
+func run(ctx context.Context) error {
+	config := configs.NewAgentConfig(
+		configs.WithAgentServerAddress(serverAddr),
+		configs.WithAgentPollInterval(pollInterval),
+		configs.WithAgentReportInterval(reportInterval),
+		configs.WithAgentNumWorkers(numWorkers),
+		configs.WithAgentLogLevel(logLevel),
+	)
+
 	err := logger.Initialize(config.LogLevel)
 	if err != nil {
 		return err
 	}
+	logger.Log.Infof("Agent config initialized: %+v", config)
 
-	worker, err := apps.NewAgentApp(config)
+	app, err := apps.NewAgentApp(config)
 	if err != nil {
 		return err
 	}
 
-	runners.RunWorker(ctx, worker)
-
-	return nil
-
+	return runners.Run(ctx, app)
 }

@@ -7,12 +7,22 @@ import (
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
+// MetricMemoryListRepository provides in-memory listing of all stored metrics.
 type MetricMemoryListRepository struct{}
 
+// NewMetricMemoryListRepository creates and returns a new MetricMemoryListRepository instance.
 func NewMetricMemoryListRepository() *MetricMemoryListRepository {
 	return &MetricMemoryListRepository{}
 }
 
+// List returns all metrics currently stored in memory, sorted by their MetricID.
+//
+// Parameters:
+//   - ctx: Context for cancellation and deadlines (not used in current implementation).
+//
+// Returns:
+//   - A slice of Metrics sorted by their ID.
+//   - An error if the operation fails (currently always nil as no error handling is implemented).
 func (repo *MetricMemoryListRepository) List(ctx context.Context) ([]types.Metrics, error) {
 	mu.RLock()
 	defer mu.RUnlock()

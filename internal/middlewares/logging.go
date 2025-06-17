@@ -1,3 +1,4 @@
+// Package middlewares provides middleware components for HTTP servers.
 package middlewares
 
 import (
@@ -8,6 +9,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// LoggingMiddleware is an HTTP middleware that logs incoming requests and outgoing responses.
+//
+// For each request, it logs the HTTP method, URI, and processing duration.
+// For each response, it logs the status code and the size of the response body.
+//
+// The logging is done using the zap logger from the internal logger package.
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -30,12 +37,15 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// responseWriter is a custom implementation of http.ResponseWriter
+// that captures the response status code and the number of bytes written.
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode  int
-	writtenSize int
+	statusCode  int // HTTP status code
+	writtenSize int // total bytes written to the response body
 }
 
+// newResponseWriter creates and returns a new wrapped responseWriter instance.
 func newResponseWriter(w http.ResponseWriter) *responseWriter {
 	return &responseWriter{
 		ResponseWriter: w,
@@ -43,11 +53,13 @@ func newResponseWriter(w http.ResponseWriter) *responseWriter {
 	}
 }
 
+// WriteHeader captures the status code and delegates to the original ResponseWriter.
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Write writes the data to the response body and updates the written size.
 func (rw *responseWriter) Write(b []byte) (int, error) {
 	n, err := rw.ResponseWriter.Write(b)
 	rw.writtenSize += n

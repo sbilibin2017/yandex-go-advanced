@@ -1,14 +1,12 @@
 package main
 
-import "context"
+import (
+	"context"
+)
 
 func main() {
-	config, err := parseFlags()
-	if err != nil {
-		panic(err)
-	}
-
-	err = run(context.Background(), config)
+	parseFlags()
+	err := run(context.Background())
 	if err != nil {
 		panic(err)
 	}

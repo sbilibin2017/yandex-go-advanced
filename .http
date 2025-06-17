@@ -1,0 +1,17 @@
+POST http://localhost:8080/update/
+Content-Type: application/json
+
+{
+  "id": "metric1",
+  "type": "counter",
+  "delta": 42  
+}
+
+POST http://localhost:8080/value/
+Content-Type: application/json
+
+{
+  "id": "metric1",
+  "type": "counter"
+   
+}

@@ -9,15 +9,30 @@ import (
 	"github.com/sbilibin2017/yandex-go-advanced/internal/runners"
 )
 
-func run(ctx context.Context, config *configs.ServerConfig) error {
+func run(ctx context.Context) error {
+	config := configs.NewServerConfig(
+		configs.WithServerAddress(addr),
+		configs.WithServerLogLevel(logLevel),
+	)
+
 	err := logger.Initialize(config.LogLevel)
 	if err != nil {
+		logger.Log.Errorf("Failed to initialize logger: %v", err)
+		return err
+	}
+	logger.Log.Infof("Server config initialized: %+v", config)
+
+	app, err := apps.NewServerApp(config)
+	if err != nil {
+		logger.Log.Errorf("Failed to create server app: %v", err)
 		return err
 	}
 
-	srv, err := apps.NewServerApp(config)
+	err = runners.Run(ctx, app)
 	if err != nil {
+		logger.Log.Errorf("Error running the app: %v", err)
 		return err
 	}
-	return runners.RunServer(ctx, srv)
+
+	return nil
 }

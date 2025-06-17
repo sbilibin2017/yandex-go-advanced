@@ -6,15 +6,19 @@ import (
 )
 
 const (
+	// Counter represents a metric type for integer counters.
 	Counter = "counter"
-	Gauge   = "gauge"
+	// Gauge represents a metric type for floating-point gauges.
+	Gauge = "gauge"
 )
 
+// MetricID uniquely identifies a metric by its type and name.
 type MetricID struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
+	ID   string `json:"id"`   // Metric name or identifier
+	Type string `json:"type"` // Metric type, e.g. "counter" or "gauge"
 }
 
+// NewMetricID creates a new MetricID given a metric type and name.
 func NewMetricID(
 	metricType string,
 	metricName string,
@@ -25,6 +29,10 @@ func NewMetricID(
 	}
 }
 
+// Metrics represents a metric with its ID, type, and value(s).
+// For counter metrics, Delta holds an integer count.
+// For gauge metrics, Value holds a floating-point measurement.
+// Hash can be used for data integrity or verification.
 type Metrics struct {
 	ID    string   `json:"id"`
 	Type  string   `json:"type"`
@@ -33,6 +41,8 @@ type Metrics struct {
 	Hash  string   `json:"hash,omitempty"`
 }
 
+// NewMetric constructs a new Metrics instance from the provided type, name, and value string.
+// It parses the value string into the appropriate type based on metricType.
 func NewMetric(
 	metricType string,
 	metricName string,
@@ -57,6 +67,8 @@ func NewMetric(
 	return m
 }
 
+// NewMetricsHTML generates an HTML page listing the provided metrics.
+// Each metric is escaped properly to prevent HTML injection.
 func NewMetricsHTML(metrics []Metrics) string {
 	htmlStr := "<html><head><title>Metrics List</title></head><body>"
 	htmlStr += "<h1>Metrics</h1>"
@@ -91,6 +103,8 @@ func NewMetricsHTML(metrics []Metrics) string {
 	return htmlStr
 }
 
+// GetMetricsStringValue returns the string representation of a metric's value.
+// Returns an empty string if the value is not set or the metric type is unknown.
 func GetMetricsStringValue(metric *Metrics) string {
 	switch metric.Type {
 	case Gauge:
