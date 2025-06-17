@@ -7,6 +7,9 @@ import (
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
+// ValidateMetricIDAttributes checks if the provided metricType and metricName
+// are valid. Returns an error if the metricName is empty or the metricType
+// is not one of the recognized types (Counter or Gauge).
 func ValidateMetricIDAttributes(metricType, metricName string) error {
 	if metricName == "" {
 		return errors.ErrMetricNameMissing
@@ -19,6 +22,10 @@ func ValidateMetricIDAttributes(metricType, metricName string) error {
 	return nil
 }
 
+// ValidateMetricAttributes validates the metricType, metricName, and metricValue.
+// It first validates the metric ID attributes, then checks if the metricValue
+// can be properly parsed according to the metricType.
+// Returns an error if any validation fails.
 func ValidateMetricAttributes(metricType, metricName, metricValue string) error {
 	err := ValidateMetricIDAttributes(metricType, metricName)
 	if err != nil {
@@ -41,6 +48,8 @@ func ValidateMetricAttributes(metricType, metricName, metricValue string) error 
 	return nil
 }
 
+// ValidateMetricID validates a MetricID struct, ensuring its ID and Type are valid.
+// Returns an error if ID is empty or Type is not recognized.
 func ValidateMetricID(id types.MetricID) error {
 	if id.ID == "" {
 		return errors.ErrMetricIDInvalid
@@ -53,6 +62,9 @@ func ValidateMetricID(id types.MetricID) error {
 	return nil
 }
 
+// ValidateMetric validates a Metrics struct, ensuring its ID and type are valid
+// and that the corresponding value field is set (Delta for Counter, Value for Gauge).
+// Returns an error if any validation fails.
 func ValidateMetric(metric types.Metrics) error {
 	err := ValidateMetricID(types.MetricID{ID: metric.ID, Type: metric.Type})
 	if err != nil {

@@ -10,10 +10,17 @@ import (
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 )
 
+// MetricUpdater defines the interface to update metrics.
 type MetricUpdater interface {
+	// Update processes a batch of metrics and returns an error if any.
 	Update(ctx context.Context, metrics []*types.Metrics) error
 }
 
+// NewMetricAgentWorker creates a worker function that collects runtime metrics,
+// periodically reports them using the given MetricUpdater, and logs any errors.
+//
+// pollInterval specifies the frequency (in seconds) of collecting runtime metrics.
+// reportInterval specifies the frequency (in seconds) of sending collected metrics to the updater.
 func NewMetricAgentWorker(
 	updater MetricUpdater,
 	pollInterval int,
@@ -24,6 +31,7 @@ func NewMetricAgentWorker(
 	}
 }
 
+// startMetricAgentWorker runs the metric collection, reporting, and error logging loops.
 func startMetricAgentWorker(
 	ctx context.Context,
 	updater MetricUpdater,
@@ -35,6 +43,8 @@ func startMetricAgentWorker(
 	logErrors(ctx, reportCh)
 }
 
+// collectRuntimeMetrics collects various runtime memory statistics and other metrics
+// at the given poll interval. It returns a channel that emits these metrics until the context is done.
 func collectRuntimeMetrics(ctx context.Context, pollInterval int) <-chan *types.Metrics {
 	out := make(chan *types.Metrics)
 
@@ -55,6 +65,7 @@ func collectRuntimeMetrics(ctx context.Context, pollInterval int) <-chan *types.
 					out <- &types.Metrics{ID: name, Type: "gauge", Value: &val}
 				}
 
+				// Send various runtime memory metrics as gauges.
 				sendGauge("Alloc", float64(ms.Alloc))
 				sendGauge("BuckHashSys", float64(ms.BuckHashSys))
 				sendGauge("Frees", float64(ms.Frees))
@@ -83,9 +94,11 @@ func collectRuntimeMetrics(ctx context.Context, pollInterval int) <-chan *types.
 				sendGauge("Sys", float64(ms.Sys))
 				sendGauge("TotalAlloc", float64(ms.TotalAlloc))
 
+				// Send a counter metric for PollCount.
 				c := int64(1)
 				out <- &types.Metrics{ID: "PollCount", Type: "counter", Delta: &c}
 
+				// Send a random gauge metric.
 				rv := rand.Float64()
 				out <- &types.Metrics{ID: "RandomValue", Type: "gauge", Value: &rv}
 			}
@@ -95,6 +108,9 @@ func collectRuntimeMetrics(ctx context.Context, pollInterval int) <-chan *types.
 	return out
 }
 
+// updateMetrics receives metrics from the input channel, buffers them,
+// and periodically sends them to the provided MetricUpdater according to reportInterval.
+// It returns a channel for any errors encountered during update.
 func updateMetrics(
 	ctx context.Context,
 	reportInterval int,
@@ -145,6 +161,7 @@ func updateMetrics(
 	return errCh
 }
 
+// logErrors listens on the error channel and logs errors until the context is canceled.
 func logErrors(ctx context.Context, errCh <-chan error) {
 	go func() {
 		for {

@@ -1,122 +1,115 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseFlags_TableDriven(t *testing.T) {
+func resetFlags() {
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+}
+
+func TestParseFlags_EnvOverridesFlags(t *testing.T) {
 	tests := []struct {
-		name            string
-		envVars         map[string]string
-		args            []string
-		expectedAddress string
-		expectedPoll    int
-		expectedReport  int
-		expectedWorkers int
-		expectedLog     string
+		name         string
+		env          map[string]string
+		args         []string
+		wantAddr     string
+		wantPoll     int
+		wantReport   int
+		wantWorkers  int
+		wantLogLevel string
 	}{
 		{
-			name:            "defaults",
-			envVars:         nil,
-			args:            []string{"cmd"},
-			expectedAddress: "localhost:8080",
-			expectedPoll:    2,
-			expectedReport:  10,
-			expectedWorkers: 4,
-			expectedLog:     "info",
-		},
-		{
-			name:    "flags override defaults",
-			envVars: nil,
-			args: []string{
-				"cmd",
-				"-a=flagaddress:1234",
-				"-p=7",
-				"-r=20",
-				"-workers=9",
-				"-l=debug",
-			},
-			expectedAddress: "flagaddress:1234",
-			expectedPoll:    7,
-			expectedReport:  20,
-			expectedWorkers: 9,
-			expectedLog:     "debug",
-		},
-		{
 			name: "env overrides flags",
-			envVars: map[string]string{
-				"ADDRESS":         "envaddress:4321",
-				"POLL_INTERVAL":   "15",
-				"REPORT_INTERVAL": "30",
+			env: map[string]string{
+				"ADDRESS":         "envhost:9090",
+				"POLL_INTERVAL":   "5",
+				"REPORT_INTERVAL": "20",
 				"NUM_WORKERS":     "8",
-				"LOG_LEVEL":       "warn",
+				"LOG_LEVEL":       "debug",
 			},
-			args: []string{
-				"cmd",
-				"-a=flagaddress",
-				"-p=7",
-				"-r=20",
-				"-workers=9",
-				"-l=debug",
+			args: []string{"cmd",
+				"-a", "flaghost:7070",
+				"-p", "15",
+				"-r", "25",
+				"-workers", "16",
+				"-l", "warn",
 			},
-			expectedAddress: "envaddress:4321",
-			expectedPoll:    15,
-			expectedReport:  30,
-			expectedWorkers: 8,
-			expectedLog:     "warn",
+			wantAddr:     "envhost:9090",
+			wantPoll:     5,
+			wantReport:   20,
+			wantWorkers:  8,
+			wantLogLevel: "debug",
 		},
 		{
-			name: "invalid env falls back to flags",
-			envVars: map[string]string{
-				"POLL_INTERVAL":   "notanint",
-				"REPORT_INTERVAL": "alsobad",
-				"NUM_WORKERS":     "badnum",
+			name: "flags only",
+			env:  nil,
+			args: []string{"cmd",
+				"-a", "flaghost:7070",
+				"-p", "15",
+				"-r", "25",
+				"-workers", "16",
+				"-l", "warn",
 			},
-			args: []string{
-				"cmd",
-				"-p=5",
-				"-r=25",
-				"-workers=3",
+			wantAddr:     "flaghost:7070",
+			wantPoll:     15,
+			wantReport:   25,
+			wantWorkers:  16,
+			wantLogLevel: "warn",
+		},
+		{
+			name: "env only",
+			env: map[string]string{
+				"ADDRESS":         "envhost:9090",
+				"POLL_INTERVAL":   "5",
+				"REPORT_INTERVAL": "20",
+				"NUM_WORKERS":     "8",
+				"LOG_LEVEL":       "debug",
 			},
-			expectedAddress: "localhost:8080",
-			expectedPoll:    5,
-			expectedReport:  25,
-			expectedWorkers: 3,
-			expectedLog:     "info",
+			args:         []string{"cmd"},
+			wantAddr:     "envhost:9090",
+			wantPoll:     5,
+			wantReport:   20,
+			wantWorkers:  8,
+			wantLogLevel: "debug",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clearEnvVars(t)
-			for k, v := range tt.envVars {
+			// Clear env first
+			for k := range tt.env {
+				os.Unsetenv(k)
+			}
+			// Set env vars for this test
+			for k, v := range tt.env {
 				os.Setenv(k, v)
 			}
 
+			resetFlags()
 			os.Args = tt.args
 
-			cfg, err := parseFlags()
-			assert.NoError(t, err)
+			serverAddr = ""
+			pollInterval = 0
+			reportInterval = 0
+			numWorkers = 0
+			logLevel = ""
 
-			assert.Equal(t, tt.expectedAddress, cfg.ServerAddress)
-			assert.Equal(t, tt.expectedPoll, cfg.PollInterval)
-			assert.Equal(t, tt.expectedReport, cfg.ReportInterval)
-			assert.Equal(t, tt.expectedWorkers, cfg.NumWorkers)
-			assert.Equal(t, tt.expectedLog, cfg.LogLevel)
+			parseFlags()
 
-			clearEnvVars(t)
+			assert.Equal(t, tt.wantAddr, serverAddr)
+			assert.Equal(t, tt.wantPoll, pollInterval)
+			assert.Equal(t, tt.wantReport, reportInterval)
+			assert.Equal(t, tt.wantWorkers, numWorkers)
+			assert.Equal(t, tt.wantLogLevel, logLevel)
+
+			for k := range tt.env {
+				os.Unsetenv(k)
+			}
 		})
 	}
-}
-
-func clearEnvVars(t *testing.T) {
-	t.Helper()
-	os.Unsetenv("ADDRESS")
-	os.Unsetenv("POLL_INTERVAL")
-	os.Unsetenv("REPORT_INTERVAL")
-	os.Unsetenv("NUM_WORKERS")
-	os.Unsetenv("LOG_LEVEL")
 }

@@ -1,18 +1,33 @@
-package facades_test
+package facades
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sbilibin2017/yandex-go-advanced/internal/facades"
+
 	"github.com/sbilibin2017/yandex-go-advanced/internal/types"
 	"github.com/stretchr/testify/assert"
 )
+
+// Helper function to decompress gzip request body if needed
+func decompressRequestBody(r *http.Request) (io.ReadCloser, error) {
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gr, err := gzip.NewReader(r.Body)
+		if err != nil {
+			return nil, err
+		}
+		return gr, nil
+	}
+	return r.Body, nil
+}
 
 func TestMetricUpdateFacade_Update(t *testing.T) {
 	tests := []struct {
@@ -26,8 +41,15 @@ func TestMetricUpdateFacade_Update(t *testing.T) {
 		{
 			name: "success",
 			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				bodyReader, err := decompressRequestBody(r)
+				if err != nil {
+					http.Error(w, "bad gzip encoding", http.StatusBadRequest)
+					return
+				}
+				defer bodyReader.Close()
+
 				var m types.Metrics
-				if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+				if err := json.NewDecoder(bodyReader).Decode(&m); err != nil {
 					http.Error(w, "bad request", http.StatusBadRequest)
 					return
 				}
@@ -102,8 +124,15 @@ func TestMetricUpdateFacade_Update(t *testing.T) {
 		{
 			name: "missing scheme in serverAddress adds http",
 			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				bodyReader, err := decompressRequestBody(r)
+				if err != nil {
+					http.Error(w, "bad gzip encoding", http.StatusBadRequest)
+					return
+				}
+				defer bodyReader.Close()
+
 				var m types.Metrics
-				if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+				if err := json.NewDecoder(bodyReader).Decode(&m); err != nil {
 					http.Error(w, "bad request", http.StatusBadRequest)
 					return
 				}
@@ -128,6 +157,7 @@ func TestMetricUpdateFacade_Update(t *testing.T) {
 			var ts *httptest.Server
 
 			if tt.name == "network error" {
+				// Create and immediately close server to simulate network error
 				ts = httptest.NewServer(tt.handlerFunc)
 				ts.Close()
 			} else {
@@ -139,13 +169,14 @@ func TestMetricUpdateFacade_Update(t *testing.T) {
 			serverAddr := tt.serverAddress
 			if serverAddr == "" {
 				if tt.name == "missing scheme in serverAddress adds http" {
+					// Remove http:// prefix to test scheme addition in facade
 					serverAddr = strings.TrimPrefix(ts.URL, "http://")
 				} else {
 					serverAddr = ts.URL
 				}
 			}
 
-			facade := facades.NewMetricUpdateFacade(serverAddr)
+			facade := NewMetricUpdateFacade(serverAddr)
 
 			err := facade.Update(context.Background(), tt.metrics)
 
@@ -159,4 +190,58 @@ func TestMetricUpdateFacade_Update(t *testing.T) {
 			ts.Close()
 		})
 	}
+}
+
+func TestCompressMetrics(t *testing.T) {
+	metric := &types.Metrics{
+		ID:    "testMetric",
+		Type:  types.Gauge,
+		Value: func() *float64 { v := 123.456; return &v }(),
+	}
+
+	compressedData, err := compressMetrics(metric)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, compressedData)
+
+	// Decompress and verify that it matches the original metric JSON
+	reader, err := gzip.NewReader(bytes.NewReader(compressedData))
+	assert.NoError(t, err)
+
+	decompressedData, err := io.ReadAll(reader)
+	assert.NoError(t, err)
+
+	err = reader.Close()
+	assert.NoError(t, err)
+
+	// Unmarshal decompressed JSON
+	var result types.Metrics
+	err = json.Unmarshal(decompressedData, &result)
+	assert.NoError(t, err)
+
+	// Compare result with original metric
+	assert.Equal(t, metric.ID, result.ID)
+	assert.Equal(t, metric.Type, result.Type)
+	assert.NotNil(t, result.Value)
+	assert.Equal(t, *metric.Value, *result.Value)
+}
+
+func TestCompressMetrics_EmptyMetric(t *testing.T) {
+	emptyMetric := &types.Metrics{}
+
+	compressedData, err := compressMetrics(emptyMetric)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, compressedData)
+
+	// Decompress to verify valid gzip data
+	reader, err := gzip.NewReader(bytes.NewReader(compressedData))
+	assert.NoError(t, err)
+	defer reader.Close()
+
+	decompressedData, err := io.ReadAll(reader)
+	assert.NoError(t, err)
+
+	var result types.Metrics
+	err = json.Unmarshal(decompressedData, &result)
+	assert.NoError(t, err)
+	assert.Equal(t, emptyMetric, &result)
 }

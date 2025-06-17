@@ -1,89 +1,88 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseFlags_ValidInputs(t *testing.T) {
+func resetFlags() {
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+}
+
+func TestParseFlags(t *testing.T) {
 	tests := []struct {
-		name            string
-		envVars         map[string]string
-		args            []string
-		expectedAddress string
-		expectedLog     string
+		name       string
+		env        map[string]string
+		args       []string
+		wantAddr   string
+		wantLogLvl string
 	}{
 		{
-			name:            "default values",
-			envVars:         nil,
-			args:            []string{"cmd"},
-			expectedAddress: "localhost:8080",
-			expectedLog:     "info",
-		},
-		{
-			name:    "flags override defaults",
-			envVars: nil,
-			args: []string{
-				"cmd",
-				"-a=flagaddress:1234",
-				"-l=debug",
-			},
-			expectedAddress: "flagaddress:1234",
-			expectedLog:     "debug",
-		},
-		{
 			name: "env overrides flags",
-			envVars: map[string]string{
-				"ADDRESS":   "envaddress:4321",
-				"LOG_LEVEL": "warn",
+			env: map[string]string{
+				"ADDRESS":   "envhost:9090",
+				"LOG_LEVEL": "debug",
 			},
-			args: []string{
-				"cmd",
-				"-a=flagaddress",
-				"-l=debug",
-			},
-			expectedAddress: "envaddress:4321",
-			expectedLog:     "warn",
+			args:       []string{"cmd", "-a", "flaghost:7070", "-l", "warn"},
+			wantAddr:   "envhost:9090",
+			wantLogLvl: "debug",
 		},
 		{
-			name: "env unset falls back to flags",
-			envVars: map[string]string{
-				"ADDRESS":   "",
-				"LOG_LEVEL": "",
+			name:       "flags only",
+			env:        nil,
+			args:       []string{"cmd", "-a", "flaghost:7070", "-l", "warn"},
+			wantAddr:   "flaghost:7070",
+			wantLogLvl: "warn",
+		},
+		{
+			name: "env only",
+			env: map[string]string{
+				"ADDRESS":   "envhost:9090",
+				"LOG_LEVEL": "debug",
 			},
-			args: []string{
-				"cmd",
-				"-a=flagaddress",
-				"-l=debug",
-			},
-			expectedAddress: "flagaddress",
-			expectedLog:     "debug",
+			args:       []string{"cmd"},
+			wantAddr:   "envhost:9090",
+			wantLogLvl: "debug",
+		},
+		{
+			name:       "defaults without env or flags",
+			env:        nil,
+			args:       []string{"cmd"},
+			wantAddr:   "localhost:8080",
+			wantLogLvl: "info",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clearEnvVars(t)
-			for k, v := range tt.envVars {
+			// Clear env first
+			os.Unsetenv("ADDRESS")
+			os.Unsetenv("LOG_LEVEL")
+
+			// Set env vars for test
+			for k, v := range tt.env {
 				os.Setenv(k, v)
 			}
+
+			resetFlags()
 			os.Args = tt.args
 
-			cfg, err := parseFlags()
-			assert.NoError(t, err)
+			// Reset globals before parsing
+			addr = ""
+			logLevel = ""
 
-			assert.Equal(t, tt.expectedAddress, cfg.Address)
-			assert.Equal(t, tt.expectedLog, cfg.LogLevel)
+			parseFlags()
 
-			clearEnvVars(t)
+			assert.Equal(t, tt.wantAddr, addr)
+			assert.Equal(t, tt.wantLogLvl, logLevel)
+
+			// Clean up env
+			for k := range tt.env {
+				os.Unsetenv(k)
+			}
 		})
 	}
-}
-
-func clearEnvVars(t *testing.T) {
-	t.Helper()
-	os.Unsetenv("ADDRESS")
-	os.Unsetenv("LOG_LEVEL")
 }

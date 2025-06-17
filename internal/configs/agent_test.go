@@ -16,16 +16,6 @@ func TestAgentOption_ServerAddress(t *testing.T) {
 	assert.Equal(t, expected, cfg.ServerAddress)
 }
 
-func TestAgentOption_ServerEndpoint(t *testing.T) {
-	expected := "/metrics"
-	opt := func(cfg *AgentConfig) {
-		cfg.ServerEndpoint = expected
-	}
-
-	cfg := NewAgentConfig(opt)
-	assert.Equal(t, expected, cfg.ServerEndpoint)
-}
-
 func TestAgentOption_LogLevel(t *testing.T) {
 	expected := "debug"
 	opt := func(cfg *AgentConfig) {
