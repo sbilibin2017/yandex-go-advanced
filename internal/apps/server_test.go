@@ -37,3 +37,44 @@ func TestServerApp_StartAndStop(t *testing.T) {
 	err = app.Stop(ctx)
 	assert.NoError(t, err)
 }
+
+func TestServerWorkerApp_StartAndStop(t *testing.T) {
+	// Prepare a test config
+	cfg := &configs.ServerConfig{
+		FileStoragePath: "testdata/metrics.json",
+		StoreInterval:   1,     // 1 second interval for quick test
+		Restore:         false, // do not restore to simplify test
+	}
+
+	workerApp, err := NewServerWorkerApp(cfg)
+	assert.NoError(t, err)
+	assert.NotNil(t, workerApp)
+
+	// Create cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Run Start in a separate goroutine since it blocks
+	done := make(chan struct{})
+	go func() {
+		err := workerApp.Start(ctx)
+		assert.NoError(t, err) // Start always returns nil
+		close(done)
+	}()
+
+	// Wait a short moment to simulate some work done by the worker
+	time.Sleep(100 * time.Millisecond)
+
+	// Cancel the context to stop the worker
+	cancel()
+
+	// Wait for the Start goroutine to finish
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for worker to stop")
+	}
+
+	// Stopping should not produce errors
+	err = workerApp.Stop(context.Background())
+	assert.NoError(t, err)
+}

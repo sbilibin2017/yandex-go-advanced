@@ -55,3 +55,38 @@ func TestAgentOption_NumWorkers(t *testing.T) {
 	cfg := NewAgentConfig(opt)
 	assert.Equal(t, expected, cfg.NumWorkers)
 }
+
+func TestWithAgentServerAddress(t *testing.T) {
+	cfg := &AgentConfig{}
+	opt := WithAgentServerAddress("localhost:8080")
+	opt(cfg)
+	assert.Equal(t, "localhost:8080", cfg.ServerAddress)
+}
+
+func TestWithAgentLogLevel(t *testing.T) {
+	cfg := &AgentConfig{}
+	opt := WithAgentLogLevel("info")
+	opt(cfg)
+	assert.Equal(t, "info", cfg.LogLevel)
+}
+
+func TestWithAgentPollInterval(t *testing.T) {
+	cfg := &AgentConfig{}
+	opt := WithAgentPollInterval(10)
+	opt(cfg)
+	assert.Equal(t, 10, cfg.PollInterval)
+}
+
+func TestWithAgentReportInterval(t *testing.T) {
+	cfg := &AgentConfig{}
+	opt := WithAgentReportInterval(20)
+	opt(cfg)
+	assert.Equal(t, 20, cfg.ReportInterval)
+}
+
+func TestWithAgentNumWorkers(t *testing.T) {
+	cfg := &AgentConfig{}
+	opt := WithAgentNumWorkers(5)
+	opt(cfg)
+	assert.Equal(t, 5, cfg.NumWorkers)
+}
